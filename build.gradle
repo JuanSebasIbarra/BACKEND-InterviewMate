@@ -41,6 +41,9 @@ dependencies {
 	// H2 only for tests
 	testRuntimeOnly 'com.h2database:h2'
 
+	// Flyway for DB migrations
+	implementation 'org.flywaydb:flyway-core'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
