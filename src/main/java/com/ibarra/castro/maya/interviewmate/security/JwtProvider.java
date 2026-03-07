@@ -5,6 +5,9 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.Key;
 import java.util.Date;
 
@@ -16,7 +19,17 @@ public class JwtProvider {
 
     public JwtProvider(@Value("${app.jwt.secret:defaultsecretkeydefaultsecretkey}") String secret,
                        @Value("${app.jwt.expiration-ms:3600000}") long validityInMillis) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        // JJWT requires keys of sufficient length for HMAC; ensure at least 32 bytes by hashing if necessary
+        if (keyBytes.length < 32) {
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                keyBytes = digest.digest(keyBytes);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 not available", e);
+            }
+        }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
         this.validityInMillis = validityInMillis;
     }
 
