@@ -57,4 +57,9 @@ public class JwtProvider {
         Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
         return claims.getSubject();
     }
+
+    // Expose validity so controllers can include expiresAt in responses
+    public long getValidityInMillis() {
+        return this.validityInMillis;
+    }
 }
