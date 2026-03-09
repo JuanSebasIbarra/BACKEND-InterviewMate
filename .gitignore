@@ -4,6 +4,10 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+*.class
+.*jar
+.*war
+.*ear
 
 ### STS ###
 .apt_generated
@@ -35,3 +39,36 @@ out/
 
 ### VS Code ###
 .vscode/
+*.code-workspace
+
+### Sistemas Operativos ###
+# Para Linux
+*~
+.directory
+# Para macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Para windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+*.cab
+*.msi
+*.msm
+*.msp
+*.msix
+
+### Seguridad y Credenciales ###
+.env
+.env.local
+.env.*.local
+application-dev.properties
+application-dev.yml
+application-secret.properties
+application-secret.yml
+secrets/
+### Logs y Reportes de Crash de Java ###
+*.log
+hs_err_pid*
+replay_pid*
