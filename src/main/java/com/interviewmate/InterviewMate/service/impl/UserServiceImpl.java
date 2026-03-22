@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 
-@Service
+@Service("userServiceImpl")
 @RequiredArgsConstructor
 @Transactional
 public class UserServiceImpl implements UserService {
