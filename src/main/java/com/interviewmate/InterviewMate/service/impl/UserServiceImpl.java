@@ -1,5 +1,7 @@
 package com.interviewmate.InterviewMate.service.impl;
 
+import com.interviewmate.InterviewMate.dto.ProfileRequest;
+import com.interviewmate.InterviewMate.dto.ProfileResponse;
 import com.interviewmate.InterviewMate.dto.UserRequest;
 import com.interviewmate.InterviewMate.dto.UserResponse;
 import com.interviewmate.InterviewMate.entity.User;
@@ -7,12 +9,12 @@ import com.interviewmate.InterviewMate.exception.BadRequestException;
 import com.interviewmate.InterviewMate.exception.ResourceNotFoundException;
 import com.interviewmate.InterviewMate.repository.UserRepository;
 import com.interviewmate.InterviewMate.service.UserService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
@@ -76,11 +78,38 @@ public class UserServiceImpl implements UserService {
         userRepository.deleteById(id);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfile(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+        return toProfileResponse(user);
+    }
+
+    @Override
+    public ProfileResponse updateProfile(String username, ProfileRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+        user.setPerfilProfesional(request.getPerfilProfesional());
+        User updated = userRepository.save(user);
+        return toProfileResponse(updated);
+    }
+
     private UserResponse toResponse(User u) {
         return UserResponse.builder()
                 .id(u.getId())
                 .username(u.getUsername())
                 .email(u.getEmail())
+                .roles(u.getRoles())
+                .createdAt(u.getCreatedAt())
+                .build();
+    }
+
+    private ProfileResponse toProfileResponse(User u) {
+        return ProfileResponse.builder()
+                .username(u.getUsername())
+                .email(u.getEmail())
+                .perfilProfesional(u.getPerfilProfesional())
                 .roles(u.getRoles())
                 .createdAt(u.getCreatedAt())
                 .build();
