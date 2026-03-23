@@ -1,5 +1,7 @@
 package com.interviewmate.InterviewMate.service;
 
+import com.interviewmate.InterviewMate.dto.ProfileRequest;
+import com.interviewmate.InterviewMate.dto.ProfileResponse;
 import com.interviewmate.InterviewMate.dto.UserRequest;
 import com.interviewmate.InterviewMate.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
@@ -71,5 +73,29 @@ public class AuthenticatedUserServiceDecorator implements UserService {
             throw new AccessDeniedException("Cannot delete other user's data");
         }
         userService.deleteUser(id);
+    }
+
+    @Override
+    public ProfileResponse getProfile(String username) {
+        checkAuthentication();
+        // Allow getting own profile or if admin
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+        if (!username.equals(currentUsername) && !auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            throw new AccessDeniedException("Cannot access other user's profile");
+        }
+        return userService.getProfile(username);
+    }
+
+    @Override
+    public ProfileResponse updateProfile(String username, ProfileRequest request) {
+        checkAuthentication();
+        // Only allow updating own profile
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+        if (!username.equals(currentUsername)) {
+            throw new AccessDeniedException("Cannot update other user's profile");
+        }
+        return userService.updateProfile(username, request);
     }
 }

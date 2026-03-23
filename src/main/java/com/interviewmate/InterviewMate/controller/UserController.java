@@ -1,5 +1,7 @@
 package com.interviewmate.InterviewMate.controller;
 
+import com.interviewmate.InterviewMate.dto.ProfileRequest;
+import com.interviewmate.InterviewMate.dto.ProfileResponse;
 import com.interviewmate.InterviewMate.dto.UserRequest;
 import com.interviewmate.InterviewMate.dto.UserResponse;
 import com.interviewmate.InterviewMate.service.UserService;
@@ -8,10 +10,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/usuarios")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -42,5 +46,22 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/perfil")
+    public ProfileResponse getProfile() {
+        String username = getCurrentUsername();
+        return userService.getProfile(username);
+    }
+
+    @PutMapping("/perfil")
+    public ProfileResponse updateProfile(@Valid @RequestBody ProfileRequest request) {
+        String username = getCurrentUsername();
+        return userService.updateProfile(username, request);
+    }
+
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
     }
 }
