@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InterviewMate - Navegador de Documentación</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-card .label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .card-icon {
+            font-size: 2.5em;
+            margin-right: 15px;
+        }
+
+        .card h2 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin: 0;
+        }
+
+        .card-meta {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 15px;
+            margin: 15px 0;
+            padding: 10px 0;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .meta-label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .card-description {
+            color: #555;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+
+        .topics {
+            margin: 15px 0;
+        }
+
+        .topics h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+
+        .topics ul {
+            list-style: none;
+            padding-left: 10px;
+        }
+
+        .topics li {
+            padding: 5px 0;
+            color: #666;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        .topics li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+        }
+
+        .btn {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            margin-top: 15px;
+            transition: background 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95em;
+        }
+
+        .btn:hover {
+            background: #764ba2;
+        }
+
+        .btn-primary {
+            background: #667eea;
+        }
+
+        .btn-secondary {
+            background: #764ba2;
+        }
+
+        .audience-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .audience-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .audience-icon {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+
+        .audience-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .audience-docs {
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .search-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .search-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .search-item {
+            background: #f8f9fa;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .search-term {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .search-docs {
+            color: #667eea;
+            font-size: 0.9em;
+            margin-top: 3px;
+        }
+
+        footer {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .section-divider {
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, transparent);
+            margin: 40px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📚 InterviewMate - Documentación</h1>
+            <p>Navegador interactivo de documentación del proyecto</p>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="number">6</div>
+                    <div class="label">Documentos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">3,914</div>
+                    <div class="label">Líneas de doc</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">120KB</div>
+                    <div class="label">Tamaño total</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">100%</div>
+                    <div class="label">Completitud</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Por Rol -->
+        <div class="search-section">
+            <h2>👥 ¿Quién eres? - Recomendaciones</h2>
+            <div class="audience-grid">
+                <div class="audience-item">
+                    <div class="audience-icon">👨‍💻</div>
+                    <div class="audience-title">Desarrollador</div>
+                    <div class="audience-docs">
+                        1️⃣ ARCHITECTURE.md<br>
+                        2️⃣ DEVELOPMENT_GUIDE.md<br>
+                        3️⃣ QUICK_REFERENCE.md
+                    </div>
+                </div>
+                <div class="audience-item">
+                    <div class="audience-icon">🏗️</div>
+                    <div class="audience-title">Arquitecto</div>
+                    <div class="audience-docs">
+                        1️⃣ ARCHITECTURE.md<br>
+                        2️⃣ DEVELOPMENT_GUIDE.md
+                    </div>
+                </div>
+                <div class="audience-item">
+                    <div class="audience-icon">🚀</div>
+                    <div class="audience-title">DevOps</div>
+                    <div class="audience-docs">
+                        1️⃣ QUICK_REFERENCE.md<br>
+                        2️⃣ DEVELOPMENT_GUIDE.md
+                    </div>
+                </div>
+                <div class="audience-item">
+                    <div class="audience-icon">🧪</div>
+                    <div class="audience-title">QA/Tester</div>
+                    <div class="audience-docs">
+                        1️⃣ USER_GUIDE.md<br>
+                        2️⃣ QUICK_REFERENCE.md
+                    </div>
+                </div>
+                <div class="audience-item">
+                    <div class="audience-icon">👥</div>
+                    <div class="audience-title">Gerente/PM</div>
+                    <div class="audience-docs">
+                        1️⃣ README.md<br>
+                        2️⃣ USER_GUIDE.md
+                    </div>
+                </div>
+                <div class="audience-item">
+                    <div class="audience-icon">📞</div>
+                    <div class="audience-title">Support</div>
+                    <div class="audience-docs">
+                        1️⃣ USER_GUIDE.md<br>
+                        2️⃣ README.md
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentos -->
+        <div class="section-divider"></div>
+        <h2 style="color: white; margin-bottom: 20px;">📄 Documentos Principales</h2>
+
+        <div class="grid">
+            <!-- README -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📘</span>
+                    <h2>README.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 498
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 16KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 15 min
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Todos
+                    </div>
+                </div>
+                <div class="card-description">
+                    Introducción general y navegación de toda la documentación. Punto de partida recomendado para nuevos miembros del equipo.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Descripción del proyecto</li>
+                        <li>Quick start por rol</li>
+                        <li>Arquitectura general</li>
+                        <li>Stack tecnológico</li>
+                        <li>Endpoints principales</li>
+                        <li>Cómo contribuir</li>
+                    </ul>
+                </div>
+                <a href="./README.md" class="btn btn-primary">Ir a README.md</a>
+            </div>
+
+            <!-- ARCHITECTURE -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🏗️</span>
+                    <h2>ARCHITECTURE.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 1004
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 36KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 2-3 horas
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Devs/Arqui
+                    </div>
+                </div>
+                <div class="card-description">
+                    ⭐ EL DOCUMENTO MÁS COMPLETO. Arquitectura detallada, 7 entidades con diagramas ER, relaciones, flujos de negocio y nomenclatura.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Arquitectura en capas</li>
+                        <li>7 Entidades + Enums</li>
+                        <li>Diagrama ER completo</li>
+                        <li>5 Flujos de negocio</li>
+                        <li>JWT + Seguridad</li>
+                        <li>Convenciones</li>
+                    </ul>
+                </div>
+                <a href="./ARCHITECTURE.md" class="btn btn-primary">Ir a ARCHITECTURE.md</a>
+            </div>
+
+            <!-- DEVELOPMENT GUIDE -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">💻</span>
+                    <h2>DEVELOPMENT_GUIDE.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 784
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 24KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 2-3 horas
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Devs
+                    </div>
+                </div>
+                <div class="card-description">
+                    Guía práctica para desarrolladores. Configuración del ambiente, 7 patrones de desarrollo, ejemplos de código reales, testing y despliegue.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Configuración entorno</li>
+                        <li>7 Patrones de code</li>
+                        <li>3 Ejemplos reales</li>
+                        <li>Testing unitario</li>
+                        <li>Despliegue (Docker)</li>
+                        <li>Producción</li>
+                    </ul>
+                </div>
+                <a href="./DEVELOPMENT_GUIDE.md" class="btn btn-primary">Ir a DEVELOPMENT_GUIDE.md</a>
+            </div>
+
+            <!-- USER GUIDE -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">👥</span>
+                    <h2>USER_GUIDE.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 723
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 20KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 1-2 horas
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Todos
+                    </div>
+                </div>
+                <div class="card-description">
+                    Guía para usuarios finales. Tipos de usuarios, 5 casos de uso principales, flujos de trabajo, ejemplos API con curl y resolución de problemas.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Tipos de usuarios</li>
+                        <li>5 Casos de uso</li>
+                        <li>Flujos completos</li>
+                        <li>Ejemplos curl</li>
+                        <li>7 Problemas comunes</li>
+                        <li>Soluciones</li>
+                    </ul>
+                </div>
+                <a href="./USER_GUIDE.md" class="btn btn-primary">Ir a USER_GUIDE.md</a>
+            </div>
+
+            <!-- QUICK REFERENCE -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">⚡</span>
+                    <h2>QUICK_REFERENCE.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 481
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 12KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 5-10 min
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Devs
+                    </div>
+                </div>
+                <div class="card-description">
+                    Referencia rápida y cheatsheet. Comandos, endpoints, configuración, errores comunes. Perfecta como marcador para búsquedas rápidas.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Comandos principales</li>
+                        <li>Endpoints resumen</li>
+                        <li>Estructura paquetes</li>
+                        <li>Errores comunes</li>
+                        <li>Patrón nuevo endpoint</li>
+                        <li>Checklists</li>
+                    </ul>
+                </div>
+                <a href="./QUICK_REFERENCE.md" class="btn btn-primary">Ir a QUICK_REFERENCE.md</a>
+            </div>
+
+            <!-- INDEX -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🗺️</span>
+                    <h2>INDEX.md</h2>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Líneas:</span> 424
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tamaño:</span> 12KB
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Tiempo:</span> 10 min
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Audiencia:</span> Todos
+                    </div>
+                </div>
+                <div class="card-description">
+                    Índice y mapa de navegación completo. Planes de lectura personalizados por rol, búsqueda rápida de temas y consejos de navegación.
+                </div>
+                <div class="topics">
+                    <h4>📚 Cubre:</h4>
+                    <ul>
+                        <li>Descripción cada doc</li>
+                        <li>Planes por rol</li>
+                        <li>Búsqueda de temas</li>
+                        <li>Mapa de contenido</li>
+                        <li>Checklist lectura</li>
+                        <li>Tips navegación</li>
+                    </ul>
+                </div>
+                <a href="./INDEX.md" class="btn btn-primary">Ir a INDEX.md</a>
+            </div>
+        </div>
+
+        <!-- Búsqueda por Tema -->
+        <div class="section-divider"></div>
+        <div class="search-section">
+            <h2>🔍 Buscar por Tema</h2>
+
+            <div class="search-item">
+                <div class="search-term">Autenticación y Seguridad</div>
+                <div class="search-docs">
+                    → ARCHITECTURE.md (Seguridad y Autenticación)<br>
+                    → DEVELOPMENT_GUIDE.md (Patrón Security)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Entidades y Base de Datos</div>
+                <div class="search-docs">
+                    → ARCHITECTURE.md (Entidades y Relaciones)<br>
+                    → ARCHITECTURE.md (Diagrama ER)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Crear un Nuevo Endpoint</div>
+                <div class="search-docs">
+                    → DEVELOPMENT_GUIDE.md (Patrones)<br>
+                    → QUICK_REFERENCE.md (Nuevo Endpoint)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Despliegue y DevOps</div>
+                <div class="search-docs">
+                    → DEVELOPMENT_GUIDE.md (Despliegue)<br>
+                    → QUICK_REFERENCE.md (Docker)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Flujos de Negocio</div>
+                <div class="search-docs">
+                    → ARCHITECTURE.md (Flujo Lógica Negocio)<br>
+                    → USER_GUIDE.md (Casos de Uso)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Probar API Manualmente</div>
+                <div class="search-docs">
+                    → USER_GUIDE.md (Ejemplos API)<br>
+                    → QUICK_REFERENCE.md (Endpoints)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Resolver Problemas/Errores</div>
+                <div class="search-docs">
+                    → USER_GUIDE.md (Resolución Problemas)<br>
+                    → QUICK_REFERENCE.md (Errores Comunes)
+                </div>
+            </div>
+
+            <div class="search-item">
+                <div class="search-term">Ejemplos de Código</div>
+                <div class="search-docs">
+                    → DEVELOPMENT_GUIDE.md (Ejemplos Código)<br>
+                    → DEVELOPMENT_GUIDE.md (Testing)
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>📚 InterviewMate - Documentación Completa</p>
+            <p>Versión 1.0 | Última actualización: Marzo 2026</p>
+            <p>Carpeta: <code>docs/</code> (fuera del código fuente)</p>
+        </footer>
+    </div>
+</body>
+</html>
+
