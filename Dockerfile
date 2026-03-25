@@ -1,5 +1,5 @@
 # Etapa 1: Construcción de la aplicación con Gradle
-FROM eclipse-temurin:17-jdk-jammy as builder
+FROM docker.io/library/eclipse-temurin:21-jdk-jammy
 
 # Establecer el directorio de trabajo
 WORKDIR /app
@@ -18,7 +18,7 @@ COPY src ./src
 RUN ./gradlew build -x test
 
 # Etapa 2: Creación de la imagen final de ejecución
-FROM eclipse-temurin:17-jre-jammy
+FROM docker.io/library/eclipse-temurin:21-jre-jammy
 
 # Establecer el directorio de trabajo
 WORKDIR /app
