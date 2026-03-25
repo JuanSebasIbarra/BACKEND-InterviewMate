@@ -1,34 +1,26 @@
-# Etapa 1: Construcción de la aplicación con Gradle
-FROM docker.io/library/eclipse-temurin:21-jdk-jammy
+# Etapa 1: Construcción
+FROM docker.io/library/eclipse-temurin:21-jdk-jammy AS builder
 
-# Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar los archivos de Gradle para aprovechar la caché de capas de Docker
 COPY gradlew .
 COPY gradle ./gradle
 COPY build.gradle .
 COPY settings.gradle .
 
-# Descargar las dependencias
-RUN ./gradlew dependencies
+RUN chmod +x gradlew
+RUN ./gradlew dependencies --no-daemon
 
-# Copiar el resto del código fuente y construir el proyecto
 COPY src ./src
-RUN ./gradlew build -x test
+RUN ./gradlew build -x test --no-daemon
 
-# Etapa 2: Creación de la imagen final de ejecución
+# Etapa 2: Ejecución
 FROM docker.io/library/eclipse-temurin:21-jre-jammy
 
-# Establecer el directorio de trabajo
 WORKDIR /app
 
-# Exponer el puerto en el que corre la aplicación (Railway lo detecta automáticamente)
-EXPOSE 8080
-
-# Copiar el archivo .jar construido desde la etapa anterior
-# Gradle lo genera dentro de build/libs/
 COPY --from=builder /app/build/libs/*.jar app.jar
 
-# Comando para ejecutar la aplicación
+EXPOSE 8080
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
