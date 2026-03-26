@@ -1,7 +1,9 @@
 package com.interviewmate.InterviewMate.dto;
 
 import lombok.*;
-import java.time.Instant;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -10,9 +12,14 @@ import java.time.Instant;
 @Builder
 public class QuestionResponse {
 
-    private Long id;
-    private String text;
-    private String type;
-    private Integer questionOrder;
-    private Instant createdAt;
+    private UUID id;
+    private UUID sessionId;
+    private int orderIndex;
+    private String question;
+    private String answer;
+    private String aiFeedback;
+    private Double score;
+    private String aiModel;
+    private LocalDateTime createdAt;
+    private LocalDateTime answeredAt;
 }
