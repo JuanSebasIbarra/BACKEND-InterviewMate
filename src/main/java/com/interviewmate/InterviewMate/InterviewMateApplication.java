@@ -8,6 +8,11 @@ public class InterviewMateApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(InterviewMateApplication.class, args);
+		System.out.println("================================================================");
+		System.out.println("================================================================");
+		System.out.println("             THE SERVER IS RUNNING SUCCESSFULLY");
+		System.out.println("================================================================");
+		System.out.println("================================================================");
 	}
 
 }
