@@ -1,8 +1,7 @@
 package com.interviewmate.InterviewMate.dto;
 
-import lombok.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
 @Getter
 @Setter
@@ -11,9 +10,6 @@ import jakarta.validation.constraints.NotNull;
 @Builder
 public class SubmitAnswerRequest {
 
-    @NotNull(message = "ID de pregunta es obligatorio")
-    private Long questionId;
-
-    @NotBlank(message = "Texto de respuesta es obligatorio")
-    private String text;
+    @NotBlank(message = "Answer is required")
+    private String answer;
 }
