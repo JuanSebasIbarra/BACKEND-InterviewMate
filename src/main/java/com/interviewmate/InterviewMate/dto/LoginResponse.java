@@ -10,7 +10,7 @@ import java.time.Instant;
 @Builder
 public class LoginResponse {
     private String token;
-    private String tokenType = "Bearer";
+    private String tokenType;
     private Instant expiresAt;
     private String username;
 }
