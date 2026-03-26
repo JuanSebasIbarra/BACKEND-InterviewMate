@@ -1,0 +1,61 @@
+package com.interviewmate.InterviewMate.service.impl;
+
+import com.interviewmate.InterviewMate.dto.CreateResultRequest;
+import com.interviewmate.InterviewMate.dto.InterviewResultResponse;
+import com.interviewmate.InterviewMate.entity.InterviewResult;
+import com.interviewmate.InterviewMate.entity.InterviewSession;
+import com.interviewmate.InterviewMate.entity.User;
+import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
+import com.interviewmate.InterviewMate.mapper.InterviewResultMapper;
+import com.interviewmate.InterviewMate.repository.InterviewResultRepository;
+import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.InterviewResultService;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+public class InterviewResultServiceImpl implements InterviewResultService {
+
+    private final InterviewResultRepository resultRepository;
+    private final InterviewResultMapper resultMapper;
+    private final UserRepository userRepository;
+
+    public InterviewResultServiceImpl(InterviewResultRepository resultRepository,
+                                      InterviewResultMapper resultMapper,
+                                      UserRepository userRepository) {
+        this.resultRepository = resultRepository;
+        this.resultMapper = resultMapper;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public InterviewResultResponse getBySession(UUID sessionId) {
+        InterviewResult result = resultRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new EntityNotFoundException("Result not found for session: " + sessionId));
+        return resultMapper.toResponse(result);
+    }
+
+    @Override
+    public List<InterviewResultResponse> getByAuthenticatedUser() {
+        User user = getAuthenticatedUser();
+        return resultRepository.findBySessionTemplateUserId(user.getId()).stream()
+                .map(resultMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public InterviewResultResponse save(CreateResultRequest request, InterviewSession session) {
+        InterviewResult result = resultMapper.toEntity(request, session);
+        return resultMapper.toResponse(resultRepository.save(result));
+    }
+
+    private User getAuthenticatedUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
+    }
+}
