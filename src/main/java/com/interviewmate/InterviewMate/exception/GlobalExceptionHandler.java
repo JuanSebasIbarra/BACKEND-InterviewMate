@@ -1,7 +1,6 @@
 package com.interviewmate.InterviewMate.exception;
 
 import com.interviewmate.InterviewMate.dto.ApiResponse;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
