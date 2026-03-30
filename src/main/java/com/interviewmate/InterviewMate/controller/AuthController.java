@@ -31,17 +31,23 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody UserRequest request) {
         if (userRepository.existsByEmail(request.getEmail()) || userRepository.existsByUsername(request.getUsername())) {
+
             return ResponseEntity.badRequest().body("User or email already exists");
         }
-        User u = User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .roles(Set.of("ROLE_USER"))
-                .createdAt(Instant.now())
-                .build();
-        userRepository.save(u);
-        return ResponseEntity.ok().build();
+        if(request.getPassword(). equals(request.getConfirmPassword())) {
+            User u = User.builder()
+                    .username(request.getUsername())
+                    .email(request.getEmail())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .roles(Set.of("ROLE_USER"))
+                    .createdAt(Instant.now())
+                    .build();
+            userRepository.save(u);
+            return ResponseEntity.ok().build();
+        }
+        else {
+            return ResponseEntity.badRequest().body("Password and confirm password do not match");
+        }
     }
 
     @PostMapping("/login")
