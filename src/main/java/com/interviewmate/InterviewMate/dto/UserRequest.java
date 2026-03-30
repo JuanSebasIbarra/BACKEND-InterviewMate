@@ -25,10 +25,10 @@ public class UserRequest {
     @Size(min = 8, max = 100)
     private String password;
 
-    // password_confirmation
-//    @NotBlank
-//    @Size(min = 8, max = 100)
-//    private String password_comfirmation;
+    @NotBlank
+    @Size(min = 8, max = 100)
+    private String confirmPassword;
+
 }
 
 
