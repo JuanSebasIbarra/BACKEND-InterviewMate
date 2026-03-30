@@ -14,6 +14,9 @@ public class UserRequest {
     @Size(min = 3, max = 50)
     private String username;
 
+    //name
+    //lastname - optional
+
     @NotBlank
     @Email
     private String email;
@@ -27,3 +30,8 @@ public class UserRequest {
     private String confirmPassword;
 
 }
+
+
+//login
+// email o el username ---> DTO
+// password
