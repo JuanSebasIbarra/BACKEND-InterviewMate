@@ -1,5 +1,6 @@
 package com.interviewmate.InterviewMate.entity;
 
+import com.interviewmate.InterviewMate.enums.AuthProvider;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
@@ -26,6 +27,17 @@ public class User {
 
     @Column(nullable = false)
     private String password;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "VARCHAR(255) DEFAULT 'LOCAL'")
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(unique = true)
+    private String googleId;
+
+    @Column(length = 1000)
+    private String profilePictureUrl;
 
     @Column(length = 5000)
     private String perfilProfesional;
