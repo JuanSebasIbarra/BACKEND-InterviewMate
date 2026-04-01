@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
 import jakarta.validation.Valid;
 import java.time.Instant;
@@ -64,6 +65,11 @@ public class AuthController {
                 .username(auth.getName())
                 .build();
         return ResponseEntity.ok(resp);
+    }
+
+    @GetMapping("/oauth2/google")
+    public RedirectView oauth2Google() {
+        return new RedirectView("/oauth2/authorization/google");
     }
 
     @GetMapping("/me")
