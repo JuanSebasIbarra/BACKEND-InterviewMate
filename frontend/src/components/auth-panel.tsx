@@ -6,11 +6,6 @@ interface PropiedadesAuthPanel {
   formularioRegistro: ValoresRegistro;
   errorAutenticacion?: string;
   cargandoAutenticacion: boolean;
-  credencialesDemo: {
-    usuario: string;
-    correo: string;
-    contrasena: string;
-  };
   cambiarModo: (modo: ModoAutenticacion) => void;
   cambiarIngreso: (campo: keyof ValoresIngreso, valor: string) => void;
   cambiarRegistro: (campo: keyof ValoresRegistro, valor: string) => void;
@@ -24,7 +19,6 @@ export function AuthPanel({
   formularioRegistro,
   errorAutenticacion,
   cargandoAutenticacion,
-  credencialesDemo,
   cambiarModo,
   cambiarIngreso,
   cambiarRegistro,
@@ -41,18 +35,12 @@ export function AuthPanel({
           <span>experiencia profesional.</span>
         </h1>
         <p className="subcopy subcopy-claro">
-          Inicia sesión o registra tu cuenta para acceder al simulador de entrevistas con avatar, audio en tiempo real e historial con recomendaciones.
+          Inicia sesion o registra tu cuenta para acceder al simulador de entrevistas con avatar, audio en tiempo real e historial con recomendaciones.
         </p>
       </div>
 
-      <div className="auth-demo">
-        <strong>Usuario de prueba</strong>
-        <span>Usuario: {credencialesDemo.usuario}</span>
-        <span>Contraseña: {credencialesDemo.contrasena}</span>
-      </div>
-
       <div>
-        <div className="tab-row tab-row-claro" role="tablist" aria-label="Modo de autenticación">
+        <div className="tab-row tab-row-claro" role="tablist" aria-label="Modo de autenticacion">
           <button className={`tab-button ${modo === "ingreso" ? "active" : ""}`} type="button" onClick={() => cambiarModo("ingreso")}>
             Login
           </button>
@@ -69,13 +57,13 @@ export function AuthPanel({
                 <input id="usuario-ingreso" value={formularioIngreso.usuario} onChange={(event) => cambiarIngreso("usuario", event.target.value)} placeholder="Ingresa tu usuario" />
               </div>
               <div className="field">
-                <label htmlFor="contrasena-ingreso">Contraseña</label>
+                <label htmlFor="contrasena-ingreso">Contrasena</label>
                 <input
                   id="contrasena-ingreso"
                   type="password"
                   value={formularioIngreso.contrasena}
                   onChange={(event) => cambiarIngreso("contrasena", event.target.value)}
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder="Minimo 8 caracteres"
                 />
               </div>
             </div>
@@ -97,7 +85,7 @@ export function AuthPanel({
               </div>
               <div className="field-row">
                 <div className="field">
-                  <label htmlFor="contrasena-registro">Contraseña</label>
+                  <label htmlFor="contrasena-registro">Contrasena</label>
                   <input
                     id="contrasena-registro"
                     type="password"
@@ -106,7 +94,7 @@ export function AuthPanel({
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor="confirmar-registro">Confirmar contraseña</label>
+                  <label htmlFor="confirmar-registro">Confirmar contrasena</label>
                   <input
                     id="confirmar-registro"
                     type="password"

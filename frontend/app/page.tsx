@@ -31,7 +31,6 @@ export default function HomePage() {
           formularioRegistro={aplicacion.formularioRegistro}
           errorAutenticacion={aplicacion.errorAutenticacion}
           cargandoAutenticacion={aplicacion.cargandoAutenticacion}
-          credencialesDemo={aplicacion.perfilResumen.credencialesDemo}
           cambiarModo={aplicacion.setModoAutenticacion}
           cambiarIngreso={aplicacion.actualizarIngreso}
           cambiarRegistro={aplicacion.actualizarRegistro}
