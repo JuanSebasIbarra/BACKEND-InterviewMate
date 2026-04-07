@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface InterviewTemplateRepository extends JpaRepository<InterviewTemplate, UUID> {
     List<InterviewTemplate> findByUserId(Long userId);
+    long countByUserId(Long userId);
 }

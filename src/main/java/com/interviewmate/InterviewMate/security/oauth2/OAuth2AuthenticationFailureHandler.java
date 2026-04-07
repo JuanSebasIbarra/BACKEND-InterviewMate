@@ -4,10 +4,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 
@@ -15,22 +18,31 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationFailureHandler {
 
+    @Value("${app.oauth2.error-redirect-uri:http://localhost:3000/login}")
+    private String errorRedirectUri;
+
+    @Value("${app.oauth2.cookie-name:interviewmate_auth}")
+    private String authCookieName;
+
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         AuthenticationException exception) throws IOException, ServletException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{" +
-                "\"status\":" + HttpServletResponse.SC_UNAUTHORIZED + "," +
-                "\"error\":\"Authentication Failed\"," +
-                "\"message\":\"" + jsonEscape(exception.getMessage()) + "\"," +
-                "\"path\":\"" + jsonEscape(request.getServletPath()) + "\"" +
-                "}");
-    }
+        ResponseCookie clearCookie = ResponseCookie.from(authCookieName, "")
+                .path("/")
+                .sameSite("Lax")
+                .secure(request.isSecure())
+                .httpOnly(false)
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, clearCookie.toString());
 
-    private String jsonEscape(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+        String targetUrl = UriComponentsBuilder.fromUriString(errorRedirectUri)
+                .queryParam("error", "oauth2_authentication_failed")
+                .queryParam("message", exception.getMessage())
+                .build()
+                .toUriString();
+        getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }
 

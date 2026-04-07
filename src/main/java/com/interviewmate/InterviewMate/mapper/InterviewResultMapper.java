@@ -4,6 +4,7 @@ import com.interviewmate.InterviewMate.dto.CreateResultRequest;
 import com.interviewmate.InterviewMate.dto.InterviewResultResponse;
 import com.interviewmate.InterviewMate.entity.InterviewResult;
 import com.interviewmate.InterviewMate.entity.InterviewSession;
+import com.interviewmate.InterviewMate.entity.InterviewTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -22,18 +23,28 @@ public class InterviewResultMapper {
     }
 
     public InterviewResultResponse toResponse(InterviewResult result) {
-        InterviewResultResponse response = new InterviewResultResponse();
-        response.setId(result.getId());
-        response.setSessionId(result.getSession().getId());
-        response.setAttemptNumber(result.getSession().getAttemptNumber());
-        response.setGeneralFeedback(result.getGeneralFeedback());
-        response.setStrengths(result.getStrengths());
-        response.setWeaknesses(result.getWeaknesses());
-        response.setTotalScore(result.getTotalScore());
-        response.setStatus(result.getStatus());
-        response.setAiModel(result.getAiModel());
-        response.setTotalTokensUsed(result.getTotalTokensUsed());
-        response.setGeneratedAt(result.getGeneratedAt());
-        return response;
+        InterviewSession session = result.getSession();
+        InterviewTemplate template = session.getTemplate();
+
+        return InterviewResultResponse.builder()
+                .id(result.getId())
+                .sessionId(session.getId())
+                .attemptNumber(session.getAttemptNumber())
+                .templateId(template.getId())
+                .enterprise(template.getEnterprise())
+                .position(template.getPosition())
+                .interviewType(template.getType())
+                .generalFeedback(result.getGeneralFeedback())
+                .strengths(result.getStrengths())
+                .weaknesses(result.getWeaknesses())
+                .totalScore(result.getTotalScore())
+                .status(result.getStatus())
+                .aiModel(result.getAiModel())
+                .totalTokensUsed(result.getTotalTokensUsed())
+                .generatedAt(result.getGeneratedAt())
+                .sessionStartedAt(session.getStartedAt())
+                .build();
     }
 }
+
+

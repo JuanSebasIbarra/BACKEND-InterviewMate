@@ -1,5 +1,7 @@
 package com.interviewmate.interviewmate.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.interviewmate.InterviewMate.config.AiServiceProperties;
 import com.interviewmate.InterviewMate.dto.GenerateStudyQuestionsRequest;
 import com.interviewmate.InterviewMate.dto.StartStudyRequest;
 import com.interviewmate.InterviewMate.entity.StudyQuestion;
@@ -48,7 +50,9 @@ class StudyServiceImplTest {
                 studySessionRepository,
                 studyQuestionRepository,
                 new StudyMapper(),
-                userRepository
+                userRepository,
+                new AiServiceProperties(),
+                new ObjectMapper()
         );
 
         SecurityContextHolder.getContext().setAuthentication(

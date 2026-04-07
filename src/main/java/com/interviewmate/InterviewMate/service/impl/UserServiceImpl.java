@@ -90,7 +90,33 @@ public class UserServiceImpl implements UserService {
     public ProfileResponse updateProfile(String username, ProfileRequest request) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
-        user.setPerfilProfesional(request.getPerfilProfesional());
+
+        // Update username if provided and different
+        if (request.getUsername() != null && !request.getUsername().isBlank()
+                && !request.getUsername().equals(user.getUsername())) {
+            if (userRepository.existsByUsername(request.getUsername())) {
+                throw new BadRequestException("Username already in use");
+            }
+            user.setUsername(request.getUsername());
+        }
+
+        // Update email if provided and different
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && !request.getEmail().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new BadRequestException("Email already in use");
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getPerfilProfesional() != null) {
+            user.setPerfilProfesional(request.getPerfilProfesional());
+        }
+
+        if (request.getProfilePictureUrl() != null) {
+            user.setProfilePictureUrl(request.getProfilePictureUrl());
+        }
+
         User updated = userRepository.save(user);
         return toProfileResponse(updated);
     }
@@ -107,9 +133,12 @@ public class UserServiceImpl implements UserService {
 
     private ProfileResponse toProfileResponse(User u) {
         return ProfileResponse.builder()
+                .id(u.getId())
                 .username(u.getUsername())
                 .email(u.getEmail())
                 .perfilProfesional(u.getPerfilProfesional())
+                .profilePictureUrl(u.getProfilePictureUrl())
+                .authProvider(u.getAuthProvider())
                 .roles(u.getRoles())
                 .createdAt(u.getCreatedAt())
                 .build();

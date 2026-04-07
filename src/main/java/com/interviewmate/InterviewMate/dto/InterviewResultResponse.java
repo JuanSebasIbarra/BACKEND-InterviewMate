@@ -1,5 +1,6 @@
 package com.interviewmate.InterviewMate.dto;
 
+import com.interviewmate.InterviewMate.enums.InterviewType;
 import com.interviewmate.InterviewMate.enums.ResultStatus;
 import lombok.*;
 
@@ -16,6 +17,12 @@ public class InterviewResultResponse {
     private UUID id;
     private UUID sessionId;
     private int attemptNumber;
+    // Template context
+    private UUID templateId;
+    private String enterprise;
+    private String position;
+    private InterviewType interviewType;
+    // Result fields
     private String generalFeedback;
     private String strengths;
     private String weaknesses;
@@ -24,4 +31,5 @@ public class InterviewResultResponse {
     private String aiModel;
     private int totalTokensUsed;
     private LocalDateTime generatedAt;
+    private LocalDateTime sessionStartedAt;
 }
