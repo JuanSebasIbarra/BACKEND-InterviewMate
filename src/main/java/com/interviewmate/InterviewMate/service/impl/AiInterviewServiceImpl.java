@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.interviewmate.InterviewMate.config.AiServiceProperties;
 import com.interviewmate.InterviewMate.dto.CreateResultRequest;
+import com.interviewmate.InterviewMate.dto.EvaluationResult;
 import com.interviewmate.InterviewMate.entity.InterviewQuestion;
 import com.interviewmate.InterviewMate.entity.InterviewSession;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
@@ -12,11 +13,11 @@ import com.interviewmate.InterviewMate.repository.InterviewQuestionRepository;
 import com.interviewmate.InterviewMate.repository.InterviewSessionRepository;
 import com.interviewmate.InterviewMate.service.AiInterviewService;
 import com.interviewmate.InterviewMate.service.InterviewResultService;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -102,21 +103,38 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             return;
         }
 
-        String systemPrompt = "You evaluate interview answers. Return strict JSON with keys: score (0-100), feedback.";
-        String userPrompt = "Question: " + question.getQuestion() + "\nCandidate answer: " + question.getAnswer();
         try {
-            ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.2, 400);
-            Map<String, Object> payload = objectMapper.readValue(chat.content(), new TypeReference<>() {});
-            double score = parseScore(payload.get("score"));
-            String feedback = String.valueOf(payload.getOrDefault("feedback", "Good attempt. Keep refining your answer with concrete examples."));
-            question.setAiFeedback(feedback);
-            question.setScore(score);
+            EvaluationResult result = evaluateResponse(question.getQuestion(), question.getAnswer());
+            question.setAiFeedback(buildStoredFeedback(result));
+            question.setScore((double) result.score());
         } catch (Exception ex) {
             question.setAiFeedback("Could not evaluate with AI, using fallback evaluation.");
             question.setScore(70.0);
         }
         question.setAiModel(aiServiceProperties.getInterview().getChatModel());
         questionRepository.save(question);
+    }
+
+    @Override
+    public EvaluationResult evaluateResponse(String question, String userResponse) {
+        if (question == null || question.isBlank() || userResponse == null || userResponse.isBlank() || !isInterviewAiEnabled()) {
+            return fallbackEvaluationResult();
+        }
+
+        String systemPrompt = """
+                Act as a senior technical interviewer.
+                Analyze the candidate response and return strict JSON with keys:
+                score (0-100), strengths (array of strings), codeSmells (array of strings), technicalFeedback (string), suggestedImprovement (string).
+                Keep the feedback constructive.
+                """;
+        String userPrompt = "Question: " + question + "\nCandidate answer: " + userResponse;
+
+        try {
+            ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.2, 700);
+            return parseEvaluationResult(chat.content());
+        } catch (Exception ex) {
+            return fallbackEvaluationResult();
+        }
     }
 
     @Override
@@ -143,7 +161,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             String userPrompt = "Candidate interview summary:\n" + qaSummary + "\nAverage score: " + avgScore;
             try {
                 ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.3, 600);
-                Map<String, Object> payload = objectMapper.readValue(chat.content(), new TypeReference<>() {});
+                Map<String, Object> payload = objectMapper.readValue(sanitizeJsonContent(chat.content()), new TypeReference<>() {});
                 request.setGeneralFeedback(String.valueOf(payload.getOrDefault("generalFeedback", "Interview completed successfully.")));
                 request.setStrengths(String.valueOf(payload.getOrDefault("strengths", "Good baseline communication and structured answers.")));
                 request.setWeaknesses(String.valueOf(payload.getOrDefault("weaknesses", "Need more depth and concrete technical examples.")));
@@ -162,39 +180,17 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     @Override
     public byte[] generateSpeechForQuestion(UUID questionId) {
-        InterviewQuestion question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new EntityNotFoundException("Question not found: " + questionId));
-
-        if (!isInterviewAiEnabled()) {
-            throw new IllegalStateException("Interview AI is disabled; cannot generate TTS audio.");
-        }
-
-        String url = normalizedBaseUrl(aiServiceProperties.getInterview().getBaseUrl()) + "/audio/speech";
-        HttpHeaders headers = buildJsonHeaders(aiServiceProperties.getInterview().getApiKey());
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", aiServiceProperties.getInterview().getTtsModel());
-        body.put("voice", aiServiceProperties.getInterview().getVoice());
-        body.put("input", question.getQuestion());
-        body.put("format", "mp3");
-
-        ResponseEntity<byte[]> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                new HttpEntity<>(body, headers),
-                byte[].class
-        );
-
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            throw new IllegalStateException("Failed to generate speech for question: " + questionId);
-        }
-
-        return response.getBody();
+        throw new UnsupportedOperationException("Text-to-Speech no está disponible en esta versión.");
     }
 
     private ChatResult callChatCompletion(String systemPrompt,
                                           String userPrompt,
                                           double temperature,
                                           int maxTokens) {
+        if (isGeminiProvider(aiServiceProperties.getInterview().getProvider())) {
+            return callGeminiChatCompletion(systemPrompt, userPrompt, temperature, maxTokens);
+        }
+
         String url = normalizedBaseUrl(aiServiceProperties.getInterview().getBaseUrl()) + "/chat/completions";
         HttpHeaders headers = buildJsonHeaders(aiServiceProperties.getInterview().getApiKey());
 
@@ -238,6 +234,61 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return new ChatResult(content, totalTokens);
     }
 
+    private ChatResult callGeminiChatCompletion(String systemPrompt,
+                                                String userPrompt,
+                                                double temperature,
+                                                int maxTokens) {
+        String model = aiServiceProperties.getInterview().getChatModel();
+        String baseUrl = normalizedBaseUrl(aiServiceProperties.getInterview().getBaseUrl());
+        String apiKey = aiServiceProperties.getInterview().getApiKey();
+
+        String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemPrompt))));
+        body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", userPrompt)))));
+        body.put("generationConfig", Map.of(
+                "temperature", temperature,
+                "maxOutputTokens", maxTokens
+        ));
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                new ParameterizedTypeReference<>() {}
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("Gemini generateContent request failed");
+        }
+
+        Map<String, Object> payload = response.getBody();
+        List<Map<String, Object>> candidates = asListOfMaps(payload.get("candidates"));
+        if (candidates == null || candidates.isEmpty()) {
+            throw new IllegalStateException("Gemini returned no candidates");
+        }
+
+        Map<String, Object> firstCandidate = asMap(candidates.get(0));
+        Map<String, Object> content = firstCandidate == null ? null : asMap(firstCandidate.get("content"));
+        List<Map<String, Object>> parts = content == null ? null : asListOfMaps(content.get("parts"));
+        String text = "";
+        if (parts != null && !parts.isEmpty()) {
+            text = String.valueOf(parts.get(0).getOrDefault("text", ""));
+        }
+
+        int totalTokens = 0;
+        Map<String, Object> usageMetadata = asMap(payload.get("usageMetadata"));
+        if (usageMetadata != null && usageMetadata.get("totalTokenCount") != null) {
+            totalTokens = parseTotalTokens(usageMetadata.get("totalTokenCount"));
+        }
+
+        return new ChatResult(text, totalTokens);
+    }
+
     private HttpHeaders buildJsonHeaders(String apiKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -255,14 +306,32 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     private String normalizedBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
-            return "https://api.openai.com/v1";
+            return isGeminiProvider(aiServiceProperties.getInterview().getProvider())
+                    ? "https://generativelanguage.googleapis.com/v1beta"
+                    : "https://api.openai.com/v1";
         }
         return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private boolean isGeminiProvider(String provider) {
+        return provider != null && provider.trim().equalsIgnoreCase("google-gemini");
     }
 
     private List<String> extractStringList(String content) throws Exception {
         List<String> list = objectMapper.readValue(sanitizeJsonContent(content), new TypeReference<>() {});
         return list.stream().map(String::trim).filter(s -> !s.isBlank()).toList();
+    }
+
+    private String buildQuestionGenerationPrompt(InterviewSession session) {
+        if (session.getTemplate() == null) {
+            return "Generate 5 interview questions for a generic technical profile.";
+        }
+        return "Generate 5 interview questions for this profile: " +
+                "enterprise=" + nullSafe(session.getTemplate().getEnterprise()) + ", " +
+                "position=" + nullSafe(session.getTemplate().getPosition()) + ", " +
+                "type=" + session.getTemplate().getType() + ", " +
+                "workingArea=" + nullSafe(session.getTemplate().getWorkingArea()) + ", " +
+                "requirements=" + nullSafe(session.getTemplate().getRequirements()) + ".";
     }
 
     private List<String> buildFallbackQuestions(InterviewSession session) {
@@ -292,16 +361,42 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         }
     }
 
-    private String buildQuestionGenerationPrompt(InterviewSession session) {
-        if (session.getTemplate() == null) {
-            return "Generate 5 interview questions for a generic technical profile.";
+    private EvaluationResult parseEvaluationResult(String content) throws Exception {
+        Map<String, Object> payload = objectMapper.readValue(sanitizeJsonContent(content), new TypeReference<>() {});
+        int score = (int) Math.round(parseScore(payload.get("score")));
+        List<String> strengths = parseStringList(payload.get("strengths"), List.of("Structured communication"));
+        List<String> codeSmells = parseStringList(payload.get("codeSmells"), List.of("No major code smells identified or not enough code context"));
+        String technicalFeedback = String.valueOf(payload.getOrDefault("technicalFeedback", payload.getOrDefault("feedback", "Solid attempt with room for more technical depth.")));
+        String suggestedImprovement = String.valueOf(payload.getOrDefault("suggestedImprovement", "Add more concrete examples, trade-offs and implementation details."));
+        return new EvaluationResult(score, strengths, codeSmells, technicalFeedback, suggestedImprovement);
+    }
+
+    private List<String> parseStringList(Object raw, List<String> fallback) {
+        if (raw instanceof List<?> list) {
+            List<String> parsed = list.stream()
+                    .map(String::valueOf)
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .toList();
+            if (!parsed.isEmpty()) {
+                return parsed;
+            }
         }
-        return "Generate 5 interview questions for this profile: " +
-                "enterprise=" + nullSafe(session.getTemplate().getEnterprise()) + ", " +
-                "position=" + nullSafe(session.getTemplate().getPosition()) + ", " +
-                "type=" + session.getTemplate().getType() + ", " +
-                "workingArea=" + nullSafe(session.getTemplate().getWorkingArea()) + ", " +
-                "requirements=" + nullSafe(session.getTemplate().getRequirements()) + ".";
+        return fallback;
+    }
+
+    private EvaluationResult fallbackEvaluationResult() {
+        return new EvaluationResult(
+                70,
+                List.of("Structured baseline answer", "Clear attempt to address the question"),
+                List.of("Lack of deeper technical detail"),
+                "The answer shows a reasonable understanding, but it needs more technical depth and clearer justification.",
+                "Include concrete examples, trade-offs, complexity considerations and implementation details."
+        );
+    }
+
+    private String buildStoredFeedback(EvaluationResult result) {
+        return result.technicalFeedback() + " Improvement: " + result.suggestedImprovement();
     }
 
     private String sanitizeJsonContent(String content) {
@@ -349,3 +444,4 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     private record ChatResult(String content, int totalTokens) {}
 }
+
