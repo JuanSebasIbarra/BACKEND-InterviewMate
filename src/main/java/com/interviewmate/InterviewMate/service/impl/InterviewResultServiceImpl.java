@@ -10,6 +10,8 @@ import com.interviewmate.InterviewMate.mapper.InterviewResultMapper;
 import com.interviewmate.InterviewMate.repository.InterviewResultRepository;
 import com.interviewmate.InterviewMate.repository.UserRepository;
 import com.interviewmate.InterviewMate.service.InterviewResultService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +47,13 @@ public class InterviewResultServiceImpl implements InterviewResultService {
         return resultRepository.findBySessionTemplateUserId(user.getId()).stream()
                 .map(resultMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<InterviewResultResponse> getByAuthenticatedUserPaged(Pageable pageable) {
+        User user = getAuthenticatedUser();
+        return resultRepository.findBySessionTemplateUserId(user.getId(), pageable)
+                .map(resultMapper::toResponse);
     }
 
     @Override
