@@ -6,14 +6,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.Instant;
+import java.time.Duration;
 
 @Component
 @RequiredArgsConstructor
@@ -21,6 +23,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
+
+    @Value("${app.oauth2.authorized-redirect-uri:http://localhost:3000/dashboard}")
+    private String postLoginRedirectUri;
+
+    @Value("${app.oauth2.cookie-name:interviewmate_auth}")
+    private String authCookieName;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -38,21 +46,18 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 .orElseThrow(() -> new IllegalStateException("OAuth2 user was not provisioned correctly"));
 
         String token = jwtProvider.generateToken(user.getUsername());
-        Instant expiresAt = Instant.now().plusMillis(jwtProvider.getValidityInMillis());
+        ResponseCookie authCookie = ResponseCookie.from(authCookieName, token)
+                .path("/")
+                .sameSite("Lax")
+                .secure(request.isSecure())
+                .httpOnly(false)
+                .maxAge(Duration.ofMillis(jwtProvider.getValidityInMillis()))
+                .build();
 
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{" +
-                "\"token\":\"" + jsonEscape(token) + "\"," +
-                "\"tokenType\":\"Bearer\"," +
-                "\"expiresAt\":\"" + expiresAt + "\"," +
-                "\"username\":\"" + jsonEscape(user.getUsername()) + "\"" +
-                "}");
+        response.addHeader(HttpHeaders.SET_COOKIE, authCookie.toString());
+
         clearAuthenticationAttributes(request);
-    }
-
-    private String jsonEscape(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+        getRedirectStrategy().sendRedirect(request, response, postLoginRedirectUri);
     }
 }
 
