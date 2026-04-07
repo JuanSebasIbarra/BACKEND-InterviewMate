@@ -122,6 +122,9 @@ public class StudyServiceImpl implements StudyService {
         if (audioFile == null || audioFile.isEmpty()) {
             throw new BadRequestException("Audio file is required");
         }
+        if (isGeminiProvider(aiServiceProperties.getStudy().getProvider())) {
+            throw new UnsupportedOperationException("Audio transcription is not available with provider google-gemini in this module.");
+        }
         if (!isStudyAiEnabled()) {
             throw new IllegalStateException("Study AI is disabled; cannot transcribe audio.");
         }
@@ -239,6 +242,10 @@ public class StudyServiceImpl implements StudyService {
                                                String userPrompt,
                                                double temperature,
                                                int maxTokens) {
+        if (isGeminiProvider(aiServiceProperties.getStudy().getProvider())) {
+            return callGeminiStudyChatCompletion(systemPrompt, userPrompt, temperature, maxTokens);
+        }
+
         String url = normalizedBaseUrl(aiServiceProperties.getStudy().getBaseUrl()) + "/chat/completions";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -281,6 +288,61 @@ public class StudyServiceImpl implements StudyService {
             totalTokens = parseTotalTokens(usage.get("total_tokens"));
         }
         return new ChatResult(content, totalTokens);
+    }
+
+    private ChatResult callGeminiStudyChatCompletion(String systemPrompt,
+                                                     String userPrompt,
+                                                     double temperature,
+                                                     int maxTokens) {
+        String model = aiServiceProperties.getStudy().getTextModel();
+        String baseUrl = normalizedBaseUrl(aiServiceProperties.getStudy().getBaseUrl());
+        String apiKey = aiServiceProperties.getStudy().getApiKey();
+
+        String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemPrompt))));
+        body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", userPrompt)))));
+        body.put("generationConfig", Map.of(
+                "temperature", temperature,
+                "maxOutputTokens", maxTokens
+        ));
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                new ParameterizedTypeReference<>() {}
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("Gemini study generateContent failed");
+        }
+
+        Map<String, Object> payload = response.getBody();
+        List<Map<String, Object>> candidates = asListOfMaps(payload.get("candidates"));
+        if (candidates == null || candidates.isEmpty()) {
+            throw new IllegalStateException("Gemini study returned no candidates");
+        }
+
+        Map<String, Object> firstCandidate = asMap(candidates.get(0));
+        Map<String, Object> content = firstCandidate == null ? null : asMap(firstCandidate.get("content"));
+        List<Map<String, Object>> parts = content == null ? null : asListOfMaps(content.get("parts"));
+        String text = "";
+        if (parts != null && !parts.isEmpty()) {
+            text = String.valueOf(parts.get(0).getOrDefault("text", ""));
+        }
+
+        int totalTokens = 0;
+        Map<String, Object> usageMetadata = asMap(payload.get("usageMetadata"));
+        if (usageMetadata != null && usageMetadata.get("totalTokenCount") != null) {
+            totalTokens = parseTotalTokens(usageMetadata.get("totalTokenCount"));
+        }
+
+        return new ChatResult(text, totalTokens);
     }
 
     private String sanitizeJsonContent(String content) {
@@ -346,9 +408,15 @@ public class StudyServiceImpl implements StudyService {
 
     private String normalizedBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
-            return "https://api.openai.com/v1";
+            return isGeminiProvider(aiServiceProperties.getStudy().getProvider())
+                    ? "https://generativelanguage.googleapis.com/v1beta"
+                    : "https://api.openai.com/v1";
         }
         return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private boolean isGeminiProvider(String provider) {
+        return provider != null && provider.trim().equalsIgnoreCase("google-gemini");
     }
 
     private User getAuthenticatedUser() {
