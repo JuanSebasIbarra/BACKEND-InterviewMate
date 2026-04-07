@@ -63,6 +63,7 @@ ehthumbs_vista.db
 .env
 .env.local
 .env.*.local
+**/application-local.properties
 application-dev.properties
 application-dev.yml
 application-secret.properties
