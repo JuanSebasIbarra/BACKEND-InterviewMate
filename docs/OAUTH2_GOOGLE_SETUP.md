@@ -6,7 +6,9 @@ Configura estas variables antes de ejecutar la API:
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `APP_OAUTH2_AUTHORIZED_REDIRECT_URI` (opcional, por defecto `http://localhost:3000/auth/callback`)
+- `APP_OAUTH2_AUTHORIZED_REDIRECT_URI` (opcional, por defecto `http://localhost:5173/dashboard`)
+- `APP_OAUTH2_ERROR_REDIRECT_URI` (opcional, por defecto `http://localhost:5173/login`)
+- `APP_OAUTH2_COOKIE_NAME` (opcional, por defecto `interviewmate_auth`)
 
 ## 2) Google Cloud Console
 
@@ -24,12 +26,13 @@ En tu OAuth Client (Web application) configura:
 
 ## 4) Respuesta de login social
 
-Al finalizar OAuth2, el backend responde JSON con:
+Al finalizar OAuth2 exitoso, el backend:
 
-- `token` (JWT)
-- `tokenType` (`Bearer`)
-- `expiresAt`
-- `username`
+- genera el JWT
+- guarda el token en cookie `interviewmate_auth` (configurable)
+- redirige al frontend en `APP_OAUTH2_AUTHORIZED_REDIRECT_URI` (por defecto `/dashboard`)
+
+Si OAuth2 falla, limpia cookie y redirige a `APP_OAUTH2_ERROR_REDIRECT_URI` (por defecto `/login`) con `error` y `message`.
 
 ## 5) Notas
 
