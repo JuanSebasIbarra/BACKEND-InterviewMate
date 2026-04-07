@@ -6,4 +6,5 @@ public interface AiInterviewService {
     void generateQuestionsForSession(UUID sessionId);
     void evaluateAnswer(UUID questionId);
     void generateResult(UUID sessionId);
+    byte[] generateSpeechForQuestion(UUID questionId);
 }
