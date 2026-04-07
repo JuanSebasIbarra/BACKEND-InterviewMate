@@ -32,16 +32,14 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+	// JSON processing
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
 	// JWT (JJWT)
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
-	// AI Integration - OpenAI
-	implementation 'com.theokanning.openai-gpt3-java:service:0.18.2'
-
-	// JSON processing for AI responses
-	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
 	// PostgreSQL as primary runtime DB
 	runtimeOnly 'org.postgresql:postgresql:42.6.0'
