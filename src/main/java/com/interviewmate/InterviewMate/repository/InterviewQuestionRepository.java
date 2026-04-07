@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface InterviewQuestionRepository extends JpaRepository<InterviewQuestion, UUID> {
     List<InterviewQuestion> findBySessionIdOrderByOrderIndex(UUID sessionId);
     List<InterviewQuestion> findBySessionId(UUID sessionId);
+    void deleteBySessionId(UUID sessionId);
 }
