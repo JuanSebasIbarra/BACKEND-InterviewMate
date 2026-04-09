@@ -24,6 +24,7 @@ public class StudyMapper {
     public StudySessionResponse toSessionResponse(StudySession session, List<StudyQuestion> questions) {
         StudySessionResponse response = new StudySessionResponse();
         response.setId(session.getId());
+        response.setTemplateId(session.getTemplate() == null ? null : session.getTemplate().getId());
         response.setTopic(session.getTopic());
         response.setCreatedAt(session.getCreatedAt());
         response.setQuestions(questions.stream().map(this::toQuestionResponse).toList());
