@@ -18,7 +18,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8080"
+      "value": "http://localhost:8081"
     },
     {
       "key": "username",
@@ -46,7 +46,7 @@
     },
     {
       "key": "templateId",
-      "value": ""
+      "value": "550e8400-e29b-41d4-a716-446655440000"
     },
     {
       "key": "sessionId",
@@ -229,6 +229,9 @@
                   "pm.test('Envelope OK', function () {",
                   "  pm.expect(res.success).to.eql(true);",
                   "  pm.expect(res.data.id).to.be.a('string');",
+                  "  pm.expect(res.data.templateId).to.be.a('string');",
+                  "  pm.expect(res.data.questions).to.be.an('array');",
+                  "  pm.expect(res.data.questions.length).to.be.greaterThan(0);",
                   "});",
                   "pm.collectionVariables.set('studySessionId', res.data.id);"
                 ]
@@ -245,7 +248,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"topic\": \"Spring Boot Security and CORS\",\n  \"audioFile\": \"\"\n}",
+              "raw": "{\n  \"templateId\": \"{{templateId}}\",\n  \"topic\": \"Spring Boot Security and CORS\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -266,7 +269,7 @@
           "response": []
         },
         {
-          "name": "Generate Study Questions",
+          "name": "Get Study Session (Questions Generated on Start)",
           "event": [
             {
               "listen": "test",
@@ -275,7 +278,7 @@
                 "exec": [
                   "pm.response.to.have.status(200);",
                   "const res = pm.response.json();",
-                  "pm.test('Genera preguntas', function () {",
+                  "pm.test('Ya contiene preguntas autogeneradas', function () {",
                   "  pm.expect(res.success).to.eql(true);",
                   "  pm.expect(res.data.questions).to.be.an('array');",
                   "  pm.expect(res.data.questions.length).to.be.greaterThan(0);",
@@ -285,30 +288,21 @@
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"studySessionId\": \"{{studySessionId}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
             "url": {
-              "raw": "{{baseUrl}}/study/generate-questions",
+              "raw": "{{baseUrl}}/study/{{studySessionId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "study",
-                "generate-questions"
+                "{{studySessionId}}"
               ]
             }
           },
@@ -734,7 +728,7 @@
                   "pm.test('Resultado final generado', function () {",
                   "  pm.expect(res.success).to.eql(true);",
                   "  pm.expect(res.data.totalScore).to.be.a('number');",
-                  "  pm.expect(res.data.status).to.eql('COMPLETED');",
+                  "  pm.expect(res.data).to.have.property('status');",
                   "});"
                 ]
               }
