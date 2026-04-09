@@ -1,10 +1,14 @@
 package com.interviewmate.InterviewMate.config;
 
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AiServiceConfigValidator {
+
+    private static final Logger log = LoggerFactory.getLogger(AiServiceConfigValidator.class);
 
     private final AiServiceProperties aiServiceProperties;
 
@@ -14,20 +18,29 @@ public class AiServiceConfigValidator {
 
     @PostConstruct
     public void validate() {
-        // Validación deshabilitada: permite API vacía y desactiva servicios AI automáticamente
-        // Para usar AI, establece AI_INTERVIEW_API_KEY y/o AI_STUDY_API_KEY
-        logAiStatus();
-    }
+        boolean interviewEnabledFlag = aiServiceProperties.getInterview().isEnabled();
+        boolean studyEnabledFlag = aiServiceProperties.getStudy().isEnabled();
+        boolean interviewHasKey = !isBlank(aiServiceProperties.getInterview().getApiKey());
+        boolean studyHasKey = !isBlank(aiServiceProperties.getStudy().getApiKey());
 
-    private void logAiStatus() {
-        boolean interviewEnabled = aiServiceProperties.getInterview().isEnabled() && !isBlank(aiServiceProperties.getInterview().getApiKey());
-        boolean studyEnabled = aiServiceProperties.getStudy().isEnabled() && !isBlank(aiServiceProperties.getStudy().getApiKey());
-
-        if (!interviewEnabled) {
-            System.out.println("⚠️  AI Interview Service disabled (no API key configured)");
+        if (interviewEnabledFlag && interviewHasKey) {
+            log.info("AI ENABLED -> Interview service active (provider={}, model={})",
+                    aiServiceProperties.getInterview().getProvider(),
+                    aiServiceProperties.getInterview().getChatModel());
+        } else {
+            log.warn("AI DISABLED -> Interview service in fallback mode (enabledFlag={}, apiKeyPresent={})",
+                    interviewEnabledFlag,
+                    interviewHasKey);
         }
-        if (!studyEnabled) {
-            System.out.println("⚠️  AI Study Service disabled (no API key configured)");
+
+        if (studyEnabledFlag && studyHasKey) {
+            log.info("AI ENABLED -> Study service active (provider={}, model={})",
+                    aiServiceProperties.getStudy().getProvider(),
+                    aiServiceProperties.getStudy().getTextModel());
+        } else {
+            log.warn("AI DISABLED -> Study service in fallback mode (enabledFlag={}, apiKeyPresent={})",
+                    studyEnabledFlag,
+                    studyHasKey);
         }
     }
 
