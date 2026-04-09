@@ -1,6 +1,9 @@
 package com.interviewmate.InterviewMate.dto;
 
 import lombok.*;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -9,7 +12,8 @@ import lombok.*;
 @Builder
 public class StartStudyRequest {
 
-    private String audioFile;
+    @NotNull(message = "Template ID is required")
+    private UUID templateId;
     private String topic;
 }
 
