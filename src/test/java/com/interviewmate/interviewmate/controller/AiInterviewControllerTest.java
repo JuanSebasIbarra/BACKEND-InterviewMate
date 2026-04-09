@@ -1,46 +1,52 @@
 package com.interviewmate.interviewmate.controller;
 
 import com.interviewmate.InterviewMate.controller.AIInterviewController;
-import com.interviewmate.InterviewMate.dto.EvaluationRequest;
-import com.interviewmate.InterviewMate.dto.EvaluationResult;
+import com.interviewmate.InterviewMate.dto.ApiResponse;
+import com.interviewmate.InterviewMate.dto.InterviewResultResponse;
+import com.interviewmate.InterviewMate.enums.InterviewType;
+import com.interviewmate.InterviewMate.enums.ResultStatus;
 import com.interviewmate.InterviewMate.service.AiInterviewService;
+import com.interviewmate.InterviewMate.service.InterviewResultService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiInterviewControllerTest {
 
     @Test
-    void evaluate_returnsEvaluationResultFromService() {
+    void reviewSession_returnsGeneratedInterviewFeedback() {
         AiInterviewService aiInterviewService = Mockito.mock(AiInterviewService.class);
-        AIInterviewController controller = new AIInterviewController(aiInterviewService);
+        InterviewResultService interviewResultService = Mockito.mock(InterviewResultService.class);
+        AIInterviewController controller = new AIInterviewController(aiInterviewService, interviewResultService);
 
-        EvaluationRequest request = new EvaluationRequest(
-                "How would you optimize a binary search implementation?",
-                "I would validate input, discuss complexity and keep the algorithm iterative."
-        );
-        EvaluationResult expected = new EvaluationResult(
-                88,
-                List.of("Good algorithmic reasoning"),
-                List.of("Missing edge-case examples"),
-                "Strong answer with clear understanding of complexity.",
-                "Add concrete edge cases and mention sorted input assumptions."
-        );
+        UUID sessionId = UUID.randomUUID();
+        InterviewResultResponse expected = InterviewResultResponse.builder()
+                .sessionId(sessionId)
+                .templateId(UUID.randomUUID())
+                .position("Backend Engineer")
+                .enterprise("Acme")
+                .interviewType(InterviewType.TECHNICAL)
+                .status(ResultStatus.PENDING_REVIEW)
+                .generalFeedback("Buen desempeño general")
+                .build();
 
-        when(aiInterviewService.evaluateResponse(request.question(), request.userResponse())).thenReturn(expected);
+        when(interviewResultService.getBySession(sessionId)).thenReturn(expected);
 
-        ResponseEntity<EvaluationResult> response = controller.evaluate(request);
+        ResponseEntity<ApiResponse<InterviewResultResponse>> response = controller.reviewSession(sessionId);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(expected, response.getBody());
+        assertNotNull(response.getBody().getData());
+        assertEquals(expected, response.getBody().getData());
+        verify(aiInterviewService).generateResult(sessionId);
     }
 }
 
