@@ -20,6 +20,10 @@ public class StudySession {
     @Column(nullable = false)
     private String topic;
 
+    @ManyToOne
+    @JoinColumn(name = "template_id")
+    private InterviewTemplate template;
+
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -35,6 +39,9 @@ public class StudySession {
 
     public String getTopic() { return topic; }
     public void setTopic(String topic) { this.topic = topic; }
+
+    public InterviewTemplate getTemplate() { return template; }
+    public void setTemplate(InterviewTemplate template) { this.template = template; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

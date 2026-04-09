@@ -17,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,30 +46,38 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     }
 
     @Override
+    @Transactional
     public SessionResponse create(CreateSessionRequest request) {
+        User user = getAuthenticatedUser();
         InterviewTemplate template = templateRepository.findById(request.getTemplateId())
                 .orElseThrow(() -> new EntityNotFoundException("Template not found: " + request.getTemplateId()));
+        if (!template.getUser().getId().equals(user.getId())) {
+            throw new IllegalStateException("You are not the owner of this interview template");
+        }
         int attemptNumber = sessionRepository.countByTemplateId(request.getTemplateId()) + 1;
         InterviewSession session = sessionMapper.toEntity(template, attemptNumber);
-        return sessionMapper.toResponse(sessionRepository.save(session));
+        InterviewSession saved = sessionRepository.save(session);
+        aiInterviewService.generateQuestionsForSession(saved.getId());
+        return sessionMapper.toResponse(saved);
     }
 
     @Override
     public SessionResponse begin(UUID sessionId) {
         InterviewSession session = findOrThrow(sessionId);
+        verifyOwnership(session);
         if (session.getStatus() != SessionStatus.PENDING) {
             throw new IllegalStateException("Session must be PENDING to begin, current status: " + session.getStatus());
         }
         session.setStatus(SessionStatus.IN_PROGRESS);
         session.setStartedAt(LocalDateTime.now());
         session = sessionRepository.save(session);
-        aiInterviewService.generateQuestionsForSession(sessionId);
         return sessionMapper.toResponse(session);
     }
 
     @Override
     public SessionResponse complete(UUID sessionId) {
         InterviewSession session = findOrThrow(sessionId);
+        verifyOwnership(session);
         if (session.getStatus() != SessionStatus.IN_PROGRESS) {
             throw new IllegalStateException("Session must be IN_PROGRESS to complete, current status: " + session.getStatus());
         }
@@ -80,6 +89,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     @Override
     public SessionResponse abandon(UUID sessionId) {
         InterviewSession session = findOrThrow(sessionId);
+        verifyOwnership(session);
         if (session.getStatus() == SessionStatus.COMPLETED || session.getStatus() == SessionStatus.ABANDONED) {
             throw new IllegalStateException("Session cannot be abandoned in current status: " + session.getStatus());
         }
@@ -90,11 +100,19 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     public SessionResponse getById(UUID sessionId) {
-        return sessionMapper.toResponse(findOrThrow(sessionId));
+        InterviewSession session = findOrThrow(sessionId);
+        verifyOwnership(session);
+        return sessionMapper.toResponse(session);
     }
 
     @Override
     public List<SessionResponse> getAllByTemplate(UUID templateId) {
+        User user = getAuthenticatedUser();
+        InterviewTemplate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new EntityNotFoundException("Template not found: " + templateId));
+        if (!template.getUser().getId().equals(user.getId())) {
+            throw new IllegalStateException("You are not the owner of this interview template");
+        }
         return sessionRepository.findByTemplateId(templateId).stream()
                 .map(sessionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -116,5 +134,12 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
+    }
+
+    private void verifyOwnership(InterviewSession session) {
+        User user = getAuthenticatedUser();
+        if (!session.getTemplate().getUser().getId().equals(user.getId())) {
+            throw new IllegalStateException("You are not the owner of this interview session");
+        }
     }
 }

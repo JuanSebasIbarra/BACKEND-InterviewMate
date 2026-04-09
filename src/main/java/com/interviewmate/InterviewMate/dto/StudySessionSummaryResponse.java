@@ -13,6 +13,7 @@ import java.util.UUID;
 public class StudySessionSummaryResponse {
 
     private UUID id;
+    private UUID templateId;
     private String topic;
     private int questionCount;
     private LocalDateTime createdAt;

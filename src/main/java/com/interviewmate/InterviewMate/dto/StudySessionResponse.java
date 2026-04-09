@@ -14,6 +14,7 @@ import java.util.UUID;
 public class StudySessionResponse {
 
     private UUID id;
+    private UUID templateId;
     private String topic;
     private LocalDateTime createdAt;
     private List<StudyQuestionResponse> questions;
