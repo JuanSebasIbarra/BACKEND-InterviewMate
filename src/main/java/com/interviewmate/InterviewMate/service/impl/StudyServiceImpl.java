@@ -3,10 +3,10 @@ package com.interviewmate.InterviewMate.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.interviewmate.InterviewMate.config.AiServiceProperties;
-import com.interviewmate.InterviewMate.dto.GenerateStudyQuestionsRequest;
 import com.interviewmate.InterviewMate.dto.StartStudyRequest;
 import com.interviewmate.InterviewMate.dto.StudySessionResponse;
 import com.interviewmate.InterviewMate.dto.StudySessionSummaryResponse;
+import com.interviewmate.InterviewMate.entity.InterviewTemplate;
 import com.interviewmate.InterviewMate.entity.StudyQuestion;
 import com.interviewmate.InterviewMate.entity.StudySession;
 import com.interviewmate.InterviewMate.entity.User;
@@ -15,10 +15,13 @@ import com.interviewmate.InterviewMate.enums.StudyQuestionType;
 import com.interviewmate.InterviewMate.exception.BadRequestException;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.mapper.StudyMapper;
+import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
 import com.interviewmate.InterviewMate.repository.StudyQuestionRepository;
 import com.interviewmate.InterviewMate.repository.StudySessionRepository;
 import com.interviewmate.InterviewMate.repository.UserRepository;
 import com.interviewmate.InterviewMate.service.StudyService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -45,8 +48,11 @@ import java.util.stream.Collectors;
 @Service
 public class StudyServiceImpl implements StudyService {
 
+    private static final Logger log = LoggerFactory.getLogger(StudyServiceImpl.class);
+
     private final StudySessionRepository studySessionRepository;
     private final StudyQuestionRepository studyQuestionRepository;
+    private final InterviewTemplateRepository templateRepository;
     private final StudyMapper studyMapper;
     private final UserRepository userRepository;
     private final AiServiceProperties aiServiceProperties;
@@ -55,12 +61,14 @@ public class StudyServiceImpl implements StudyService {
 
     public StudyServiceImpl(StudySessionRepository studySessionRepository,
                             StudyQuestionRepository studyQuestionRepository,
+                            InterviewTemplateRepository templateRepository,
                             StudyMapper studyMapper,
                             UserRepository userRepository,
                             AiServiceProperties aiServiceProperties,
                             ObjectMapper objectMapper) {
         this.studySessionRepository = studySessionRepository;
         this.studyQuestionRepository = studyQuestionRepository;
+        this.templateRepository = templateRepository;
         this.studyMapper = studyMapper;
         this.userRepository = userRepository;
         this.aiServiceProperties = aiServiceProperties;
@@ -69,30 +77,32 @@ public class StudyServiceImpl implements StudyService {
     }
 
     @Override
+    @Transactional
     public StudySessionResponse start(StartStudyRequest request) {
-        String topic = resolveTopic(request);
+        User authenticatedUser = getAuthenticatedUser();
+        InterviewTemplate template = findTemplateOwnedByUser(request.getTemplateId(), authenticatedUser.getId());
+        String topic = resolveTopic(request, template);
 
         StudySession session = new StudySession();
-        session.setUser(getAuthenticatedUser());
+        session.setUser(authenticatedUser);
+        session.setTemplate(template);
         session.setTopic(topic);
 
         StudySession savedSession = studySessionRepository.save(session);
-        return studyMapper.toSessionResponse(savedSession, List.of());
-    }
-
-    @Override
-    @Transactional
-    public StudySessionResponse generateQuestions(GenerateStudyQuestionsRequest request) {
-        StudySession session = findStudySessionOrThrow(request.getStudySessionId());
-        verifyOwnership(session);
-
-        studyQuestionRepository.deleteByStudySessionId(session.getId());
-
-        List<StudyQuestion> questions = isStudyAiEnabled() ? buildAiQuestions(session) : buildFallbackQuestions(session);
+        List<StudyQuestion> questions;
+        if (isStudyAiEnabled()) {
+            questions = buildAiQuestions(savedSession);
+            log.info("AI ENABLED -> Generated study questions with provider={} model={}",
+                    aiServiceProperties.getStudy().getProvider(),
+                    aiServiceProperties.getStudy().getTextModel());
+        } else {
+            log.warn("AI FALLBACK -> Study AI disabled while generating questions (reason={})", studyAiDisabledReason());
+            questions = buildFallbackQuestions(savedSession);
+        }
         studyQuestionRepository.saveAll(questions);
 
-        List<StudyQuestion> persistedQuestions = studyQuestionRepository.findByStudySessionIdOrderByOrderIndex(session.getId());
-        return studyMapper.toSessionResponse(session, persistedQuestions);
+        List<StudyQuestion> persistedQuestions = studyQuestionRepository.findByStudySessionIdOrderByOrderIndex(savedSession.getId());
+        return studyMapper.toSessionResponse(savedSession, persistedQuestions);
     }
 
     @Override
@@ -110,6 +120,7 @@ public class StudyServiceImpl implements StudyService {
         return studySessionRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(session -> StudySessionSummaryResponse.builder()
                         .id(session.getId())
+                        .templateId(session.getTemplate() == null ? null : session.getTemplate().getId())
                         .topic(session.getTopic())
                         .questionCount(studySessionRepository.countQuestionsBySessionId(session.getId()))
                         .createdAt(session.getCreatedAt())
@@ -126,6 +137,7 @@ public class StudyServiceImpl implements StudyService {
             throw new UnsupportedOperationException("Audio transcription is not available with provider google-gemini in this module.");
         }
         if (!isStudyAiEnabled()) {
+            log.warn("AI FALLBACK -> Study transcription blocked because AI is disabled (reason={})", studyAiDisabledReason());
             throw new IllegalStateException("Study AI is disabled; cannot transcribe audio.");
         }
 
@@ -162,6 +174,7 @@ public class StudyServiceImpl implements StudyService {
             Object text = response.getBody().get("text");
             return text == null ? "" : String.valueOf(text).trim();
         } catch (Exception ex) {
+            log.warn("AI FALLBACK -> Failed to transcribe audio with AI: {}", ex.getMessage());
             throw new IllegalStateException("Failed to transcribe audio", ex);
         }
     }
@@ -171,19 +184,28 @@ public class StudyServiceImpl implements StudyService {
                 .orElseThrow(() -> new EntityNotFoundException("Study session not found: " + studySessionId));
     }
 
-    private String resolveTopic(StartStudyRequest request) {
-        String rawTopic = request.getTopic() == null ? "" : request.getTopic().trim();
-        String rawAudio = request.getAudioFile() == null ? "" : request.getAudioFile().trim();
-
-        if (rawTopic.isEmpty() && rawAudio.isEmpty()) {
-            throw new BadRequestException("At least one value is required: topic or audioFile");
+    private InterviewTemplate findTemplateOwnedByUser(UUID templateId, Long userId) {
+        if (templateId == null) {
+            throw new BadRequestException("Template ID is required to start a study session");
         }
+        InterviewTemplate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new EntityNotFoundException("Template not found: " + templateId));
+        if (!template.getUser().getId().equals(userId)) {
+            throw new AccessDeniedException("You are not the owner of this interview template");
+        }
+        return template;
+    }
+
+    private String resolveTopic(StartStudyRequest request, InterviewTemplate template) {
+        String rawTopic = request.getTopic() == null ? "" : request.getTopic().trim();
 
         if (!rawTopic.isEmpty()) {
             return rawTopic;
         }
 
-        return "Topic inferred from audio note";
+        String position = template.getPosition() == null ? "Technical role" : template.getPosition().trim();
+        String area = template.getWorkingArea() == null ? "general engineering" : template.getWorkingArea().trim();
+        return position + " - " + area;
     }
 
     private List<StudyQuestion> buildFallbackQuestions(StudySession session) {
@@ -202,7 +224,7 @@ public class StudyServiceImpl implements StudyService {
 
     private List<StudyQuestion> buildAiQuestions(StudySession session) {
         String systemPrompt = "You are an expert study coach. Return strict JSON array with exactly 6 objects. Each object keys: questionText, difficulty(BASIC|INTERMEDIATE|ADVANCED), type(THEORETICAL|PRACTICAL).";
-        String userPrompt = "Generate study questions for topic: " + session.getTopic();
+        String userPrompt = buildStudyPrompt(session);
 
         try {
             ChatResult chat = callStudyChatCompletion(systemPrompt, userPrompt, 0.6, 700);
@@ -216,10 +238,12 @@ public class StudyServiceImpl implements StudyService {
                 questions.add(buildQuestion(session, i + 1, text, difficulty, type));
             }
             if (questions.isEmpty()) {
+                log.warn("AI FALLBACK -> Study AI returned empty questions, using fallback set.");
                 return buildFallbackQuestions(session);
             }
             return questions;
         } catch (Exception ex) {
+            log.warn("AI FALLBACK -> Failed generating study questions with AI: {}", ex.getMessage());
             return buildFallbackQuestions(session);
         }
     }
@@ -236,6 +260,20 @@ public class StudyServiceImpl implements StudyService {
         question.setDifficulty(difficulty);
         question.setType(type);
         return question;
+    }
+
+    private String buildStudyPrompt(StudySession session) {
+        InterviewTemplate template = session.getTemplate();
+        if (template == null) {
+            return "Generate study questions for topic: " + session.getTopic();
+        }
+        return "Generate study questions for this interview preparation profile: " +
+                "enterprise=" + nullSafe(template.getEnterprise()) + ", " +
+                "position=" + nullSafe(template.getPosition()) + ", " +
+                "type=" + template.getType() + ", " +
+                "workingArea=" + nullSafe(template.getWorkingArea()) + ", " +
+                "requirements=" + nullSafe(template.getRequirements()) + ", " +
+                "topic=" + nullSafe(session.getTopic()) + ".";
     }
 
     private ChatResult callStudyChatCompletion(String systemPrompt,
@@ -406,6 +444,16 @@ public class StudyServiceImpl implements StudyService {
                 && !aiServiceProperties.getStudy().getApiKey().isBlank();
     }
 
+    private String studyAiDisabledReason() {
+        if (!aiServiceProperties.getStudy().isEnabled()) {
+            return "enabledFlag=false";
+        }
+        if (aiServiceProperties.getStudy().getApiKey() == null || aiServiceProperties.getStudy().getApiKey().isBlank()) {
+            return "apiKeyMissing";
+        }
+        return "unknown";
+    }
+
     private String normalizedBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
             return isGeminiProvider(aiServiceProperties.getStudy().getProvider())
@@ -417,6 +465,10 @@ public class StudyServiceImpl implements StudyService {
 
     private boolean isGeminiProvider(String provider) {
         return provider != null && provider.trim().equalsIgnoreCase("google-gemini");
+    }
+
+    private String nullSafe(String value) {
+        return value == null ? "" : value;
     }
 
     private User getAuthenticatedUser() {
