@@ -1,7 +1,6 @@
 package com.interviewmate.InterviewMate.controller;
 
 import com.interviewmate.InterviewMate.dto.ApiResponse;
-import com.interviewmate.InterviewMate.dto.GenerateStudyQuestionsRequest;
 import com.interviewmate.InterviewMate.dto.StartStudyRequest;
 import com.interviewmate.InterviewMate.dto.StudySessionResponse;
 import com.interviewmate.InterviewMate.dto.StudySessionSummaryResponse;
@@ -29,16 +28,11 @@ public class StudyController {
     }
 
     @PostMapping("/start")
-    public ResponseEntity<ApiResponse<StudySessionResponse>> startStudy(@RequestBody StartStudyRequest request) {
+    public ResponseEntity<ApiResponse<StudySessionResponse>> startStudy(@Valid @RequestBody StartStudyRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(studyService.start(request)));
     }
 
-    @PostMapping("/generate-questions")
-    public ResponseEntity<ApiResponse<StudySessionResponse>> generateQuestions(
-            @Valid @RequestBody GenerateStudyQuestionsRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(studyService.generateQuestions(request)));
-    }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<StudySessionResponse>> getById(@PathVariable UUID id) {
