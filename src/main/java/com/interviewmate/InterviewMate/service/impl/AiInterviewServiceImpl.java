@@ -13,6 +13,8 @@ import com.interviewmate.InterviewMate.repository.InterviewQuestionRepository;
 import com.interviewmate.InterviewMate.repository.InterviewSessionRepository;
 import com.interviewmate.InterviewMate.service.AiInterviewService;
 import com.interviewmate.InterviewMate.service.InterviewResultService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AiInterviewServiceImpl implements AiInterviewService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiInterviewServiceImpl.class);
 
     private final InterviewQuestionRepository questionRepository;
     private final InterviewSessionRepository sessionRepository;
@@ -63,29 +67,31 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
         List<String> generatedQuestions;
         if (isInterviewAiEnabled()) {
-            String systemPrompt = "You are an expert technical interviewer. Return only a JSON array of 5 strings.";
+            String systemPrompt = "You are an expert technical interviewer. Return strict JSON array with exactly 5 strings.";
             String userPrompt = buildQuestionGenerationPrompt(session);
             try {
-                ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.7, 600);
+                ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.7, 700);
                 generatedQuestions = extractStringList(chat.content());
+                log.info("AI ENABLED -> Generated interview questions with provider={} model={}",
+                        aiServiceProperties.getInterview().getProvider(),
+                        aiServiceProperties.getInterview().getChatModel());
             } catch (Exception ex) {
+                log.warn("AI FALLBACK -> Failed generating interview questions with AI: {}", ex.getMessage());
                 generatedQuestions = buildFallbackQuestions(session);
             }
         } else {
+            log.warn("AI FALLBACK -> Interview AI disabled while generating questions (reason={})", interviewAiDisabledReason());
+            generatedQuestions = buildFallbackQuestions(session);
+        }
+
+        if (generatedQuestions.isEmpty()) {
             generatedQuestions = buildFallbackQuestions(session);
         }
 
         questionRepository.deleteBySessionId(sessionId);
         List<InterviewQuestion> questions = new ArrayList<>();
-        for (int i = 0; i < Math.min(generatedQuestions.size(), 5); i++) {
-            InterviewQuestion question = questionMapper.toEntity(session, generatedQuestions.get(i), i + 1, model);
-            questions.add(question);
-        }
-        if (questions.isEmpty()) {
-            List<String> fallback = buildFallbackQuestions(session);
-            for (int i = 0; i < fallback.size(); i++) {
-                questions.add(questionMapper.toEntity(session, fallback.get(i), i + 1, model));
-            }
+        for (int i = 0; i < generatedQuestions.size(); i++) {
+            questions.add(questionMapper.toEntity(session, generatedQuestions.get(i), i + 1, model));
         }
         questionRepository.saveAll(questions);
     }
@@ -95,7 +101,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         InterviewQuestion question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new EntityNotFoundException("Question not found: " + questionId));
 
-        if (!isInterviewAiEnabled() || question.getAnswer() == null || question.getAnswer().isBlank()) {
+        if (question.getAnswer() == null || question.getAnswer().isBlank()) {
             question.setAiFeedback("No evaluable answer was provided.");
             question.setScore(0.0);
             question.setAiModel(aiServiceProperties.getInterview().getChatModel());
@@ -108,6 +114,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             question.setAiFeedback(buildStoredFeedback(result));
             question.setScore((double) result.score());
         } catch (Exception ex) {
+            log.warn("AI FALLBACK -> Failed evaluating answer with AI: {}", ex.getMessage());
             question.setAiFeedback("Could not evaluate with AI, using fallback evaluation.");
             question.setScore(70.0);
         }
@@ -117,22 +124,29 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     @Override
     public EvaluationResult evaluateResponse(String question, String userResponse) {
-        if (question == null || question.isBlank() || userResponse == null || userResponse.isBlank() || !isInterviewAiEnabled()) {
+        if (question == null || question.isBlank() || userResponse == null || userResponse.isBlank()) {
+            return fallbackEvaluationResult();
+        }
+        if (!isInterviewAiEnabled()) {
+            log.warn("AI FALLBACK -> Interview AI disabled while evaluating answer (reason={})", interviewAiDisabledReason());
             return fallbackEvaluationResult();
         }
 
         String systemPrompt = """
                 Act as a senior technical interviewer.
                 Analyze the candidate response and return strict JSON with keys:
-                score (0-100), strengths (array of strings), codeSmells (array of strings), technicalFeedback (string), suggestedImprovement (string).
-                Keep the feedback constructive.
+                score (0..100), strengths (array of strings), codeSmells (array of strings),
+                technicalFeedback (string), suggestedImprovement (string).
+                Return JSON only.
                 """;
         String userPrompt = "Question: " + question + "\nCandidate answer: " + userResponse;
 
         try {
             ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.2, 700);
+            log.info("AI ENABLED -> Evaluated interview answer with model={}", aiServiceProperties.getInterview().getChatModel());
             return parseEvaluationResult(chat.content());
         } catch (Exception ex) {
+            log.warn("AI FALLBACK -> evaluateResponse failed with AI: {}", ex.getMessage());
             return fallbackEvaluationResult();
         }
     }
@@ -160,17 +174,20 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             String systemPrompt = "You summarize interview performance. Return strict JSON with keys: generalFeedback, strengths, weaknesses.";
             String userPrompt = "Candidate interview summary:\n" + qaSummary + "\nAverage score: " + avgScore;
             try {
-                ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.3, 600);
+                ChatResult chat = callChatCompletion(systemPrompt, userPrompt, 0.3, 700);
                 Map<String, Object> payload = objectMapper.readValue(sanitizeJsonContent(chat.content()), new TypeReference<>() {});
                 request.setGeneralFeedback(String.valueOf(payload.getOrDefault("generalFeedback", "Interview completed successfully.")));
                 request.setStrengths(String.valueOf(payload.getOrDefault("strengths", "Good baseline communication and structured answers.")));
                 request.setWeaknesses(String.valueOf(payload.getOrDefault("weaknesses", "Need more depth and concrete technical examples.")));
                 request.setTotalTokensUsed(chat.totalTokens());
+                log.info("AI ENABLED -> Generated interview result summary with model={}", aiServiceProperties.getInterview().getChatModel());
             } catch (Exception ex) {
+                log.warn("AI FALLBACK -> Failed generating result summary with AI: {}", ex.getMessage());
                 setFallbackResultTexts(request);
                 request.setTotalTokensUsed(0);
             }
         } else {
+            log.warn("AI FALLBACK -> Interview AI disabled while generating result (reason={})", interviewAiDisabledReason());
             setFallbackResultTexts(request);
             request.setTotalTokensUsed(0);
         }
@@ -180,7 +197,10 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     @Override
     public byte[] generateSpeechForQuestion(UUID questionId) {
-        throw new UnsupportedOperationException("Text-to-Speech no está disponible en esta versión.");
+        if (isGeminiProvider(aiServiceProperties.getInterview().getProvider())) {
+            throw new UnsupportedOperationException("Text-to-speech is not available with provider google-gemini in this module.");
+        }
+        throw new UnsupportedOperationException("Text-to-speech is not implemented for the current provider.");
     }
 
     private ChatResult callChatCompletion(String systemPrompt,
@@ -198,12 +218,10 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         body.put("model", aiServiceProperties.getInterview().getChatModel());
         body.put("temperature", temperature);
         body.put("max_tokens", maxTokens);
-
-        List<Map<String, String>> messages = List.of(
+        body.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)
-        );
-        body.put("messages", messages);
+        ));
 
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
@@ -221,10 +239,9 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         if (choices == null || choices.isEmpty()) {
             throw new IllegalStateException("Chat completion returned no choices");
         }
-        Map<String, Object> firstChoice = choices.get(0);
-        Map<String, Object> message = asMap(firstChoice.get("message"));
-        String content = message == null ? "" : String.valueOf(message.getOrDefault("content", ""));
 
+        Map<String, Object> message = asMap(choices.get(0).get("message"));
+        String content = message == null ? "" : String.valueOf(message.getOrDefault("content", ""));
         int totalTokens = 0;
         Map<String, Object> usage = asMap(payload.get("usage"));
         if (usage != null && usage.get("total_tokens") != null) {
@@ -241,7 +258,6 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         String model = aiServiceProperties.getInterview().getChatModel();
         String baseUrl = normalizedBaseUrl(aiServiceProperties.getInterview().getBaseUrl());
         String apiKey = aiServiceProperties.getInterview().getApiKey();
-
         String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
 
         HttpHeaders headers = new HttpHeaders();
@@ -302,6 +318,16 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return aiServiceProperties.getInterview().isEnabled()
                 && aiServiceProperties.getInterview().getApiKey() != null
                 && !aiServiceProperties.getInterview().getApiKey().isBlank();
+    }
+
+    private String interviewAiDisabledReason() {
+        if (!aiServiceProperties.getInterview().isEnabled()) {
+            return "enabledFlag=false";
+        }
+        if (aiServiceProperties.getInterview().getApiKey() == null || aiServiceProperties.getInterview().getApiKey().isBlank()) {
+            return "apiKeyMissing";
+        }
+        return "unknown";
     }
 
     private String normalizedBaseUrl(String baseUrl) {
@@ -366,8 +392,14 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         int score = (int) Math.round(parseScore(payload.get("score")));
         List<String> strengths = parseStringList(payload.get("strengths"), List.of("Structured communication"));
         List<String> codeSmells = parseStringList(payload.get("codeSmells"), List.of("No major code smells identified or not enough code context"));
-        String technicalFeedback = String.valueOf(payload.getOrDefault("technicalFeedback", payload.getOrDefault("feedback", "Solid attempt with room for more technical depth.")));
-        String suggestedImprovement = String.valueOf(payload.getOrDefault("suggestedImprovement", "Add more concrete examples, trade-offs and implementation details."));
+        String technicalFeedback = String.valueOf(payload.getOrDefault(
+                "technicalFeedback",
+                "The answer is reasonable but needs more technical depth and precise trade-off analysis."
+        ));
+        String suggestedImprovement = String.valueOf(payload.getOrDefault(
+                "suggestedImprovement",
+                "Include concrete examples, edge cases, and implementation-level details."
+        ));
         return new EvaluationResult(score, strengths, codeSmells, technicalFeedback, suggestedImprovement);
     }
 
