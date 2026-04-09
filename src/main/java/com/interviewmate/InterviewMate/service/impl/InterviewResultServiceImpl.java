@@ -12,6 +12,7 @@ import com.interviewmate.InterviewMate.repository.UserRepository;
 import com.interviewmate.InterviewMate.service.InterviewResultService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -36,8 +37,12 @@ public class InterviewResultServiceImpl implements InterviewResultService {
 
     @Override
     public InterviewResultResponse getBySession(UUID sessionId) {
+        User user = getAuthenticatedUser();
         InterviewResult result = resultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Result not found for session: " + sessionId));
+        if (!result.getSession().getTemplate().getUser().getId().equals(user.getId())) {
+            throw new AccessDeniedException("You are not the owner of this interview result");
+        }
         return resultMapper.toResponse(result);
     }
 
@@ -58,7 +63,15 @@ public class InterviewResultServiceImpl implements InterviewResultService {
 
     @Override
     public InterviewResultResponse save(CreateResultRequest request, InterviewSession session) {
-        InterviewResult result = resultMapper.toEntity(request, session);
+        InterviewResult result = resultRepository.findBySessionId(session.getId())
+                .orElseGet(() -> resultMapper.toEntity(request, session));
+        result.setSession(session);
+        result.setGeneralFeedback(request.getGeneralFeedback());
+        result.setStrengths(request.getStrengths());
+        result.setWeaknesses(request.getWeaknesses());
+        result.setTotalScore(request.getTotalScore());
+        result.setAiModel(request.getAiModel());
+        result.setTotalTokensUsed(request.getTotalTokensUsed());
         return resultMapper.toResponse(resultRepository.save(result));
     }
 
