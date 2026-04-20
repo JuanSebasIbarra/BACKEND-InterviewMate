@@ -3,14 +3,11 @@ package com.interviewmate.InterviewMate.service.impl;
 import com.interviewmate.InterviewMate.dto.DashboardStatsResponse;
 import com.interviewmate.InterviewMate.entity.InterviewResult;
 import com.interviewmate.InterviewMate.entity.StudySession;
-import com.interviewmate.InterviewMate.entity.User;
-import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.repository.InterviewResultRepository;
 import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
 import com.interviewmate.InterviewMate.repository.StudySessionRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.DashboardService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,16 +19,16 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class DashboardServiceImpl implements DashboardService {
 
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
     private final InterviewResultRepository resultRepository;
     private final StudySessionRepository studySessionRepository;
     private final InterviewTemplateRepository templateRepository;
 
-    public DashboardServiceImpl(UserRepository userRepository,
+    public DashboardServiceImpl(AccessControlService accessControlService,
                                 InterviewResultRepository resultRepository,
                                 StudySessionRepository studySessionRepository,
                                 InterviewTemplateRepository templateRepository) {
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
         this.resultRepository = resultRepository;
         this.studySessionRepository = studySessionRepository;
         this.templateRepository = templateRepository;
@@ -39,8 +36,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardStatsResponse getStatsForAuthenticatedUser() {
-        User user = getAuthenticatedUser();
-        Long userId = user.getId();
+        Long userId = accessControlService.getAuthenticatedUser().getId();
 
         List<InterviewResult> results = resultRepository.findBySessionTemplateUserId(userId);
 
@@ -77,12 +73,6 @@ public class DashboardServiceImpl implements DashboardService {
                 .lastInterviewSessionDate(lastInterviewDate)
                 .lastStudySessionDate(lastStudyDate)
                 .build();
-    }
-
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
     }
 }
 
