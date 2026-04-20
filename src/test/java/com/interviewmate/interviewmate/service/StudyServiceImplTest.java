@@ -15,14 +15,12 @@ import com.interviewmate.InterviewMate.mapper.StudyMapper;
 import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
 import com.interviewmate.InterviewMate.repository.StudyQuestionRepository;
 import com.interviewmate.InterviewMate.repository.StudySessionRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.impl.StudyServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,7 +38,7 @@ class StudyServiceImplTest {
     private StudySessionRepository studySessionRepository;
     private StudyQuestionRepository studyQuestionRepository;
     private InterviewTemplateRepository templateRepository;
-    private UserRepository userRepository;
+    private AccessControlService accessControlService;
     private StudyServiceImpl studyService;
 
     @BeforeEach
@@ -48,33 +46,29 @@ class StudyServiceImplTest {
         studySessionRepository = Mockito.mock(StudySessionRepository.class);
         studyQuestionRepository = Mockito.mock(StudyQuestionRepository.class);
         templateRepository = Mockito.mock(InterviewTemplateRepository.class);
-        userRepository = Mockito.mock(UserRepository.class);
+        accessControlService = Mockito.mock(AccessControlService.class);
 
         studyService = new StudyServiceImpl(
                 studySessionRepository,
                 studyQuestionRepository,
                 templateRepository,
                 new StudyMapper(),
-                userRepository,
+                accessControlService,
                 new AiServiceProperties(),
                 new ObjectMapper()
-        );
-
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of())
         );
     }
 
     @AfterEach
     void tearDown() {
-        SecurityContextHolder.clearContext();
+        Mockito.reset(accessControlService);
     }
 
     @Test
     void start_whenTemplateExists_createsSessionAndQuestions() {
         User user = buildUser(1L, "alice");
         InterviewTemplate template = buildTemplate(user);
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(accessControlService.getAuthenticatedUser()).thenReturn(user);
         when(templateRepository.findById(template.getId())).thenReturn(Optional.of(template));
         when(studySessionRepository.save(any(StudySession.class))).thenAnswer(invocation -> {
             StudySession saved = invocation.getArgument(0);
@@ -100,7 +94,7 @@ class StudyServiceImplTest {
     @Test
     void start_whenTemplateMissing_throwsBadRequest() {
         User user = buildUser(1L, "alice");
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(accessControlService.getAuthenticatedUser()).thenReturn(user);
         assertThrows(BadRequestException.class,
                 () -> studyService.start(StartStudyRequest.builder().build()));
     }
@@ -108,7 +102,7 @@ class StudyServiceImplTest {
     @Test
     void start_whenTemplateNotFound_throwsEntityNotFound() {
         User user = buildUser(1L, "alice");
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(accessControlService.getAuthenticatedUser()).thenReturn(user);
 
         assertThrows(com.interviewmate.InterviewMate.exception.EntityNotFoundException.class,
                 () -> studyService.start(StartStudyRequest.builder().templateId(UUID.randomUUID()).build()));
@@ -127,7 +121,7 @@ class StudyServiceImplTest {
         session.setTopic("Backend Engineer - Platform");
         session.setCreatedAt(LocalDateTime.now());
 
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(accessControlService.getAuthenticatedUser()).thenReturn(user);
         when(templateRepository.findById(template.getId())).thenReturn(Optional.of(template));
         when(studySessionRepository.save(any(StudySession.class))).thenReturn(session);
         when(studyQuestionRepository.findByStudySessionIdOrderByOrderIndex(eq(sessionId)))

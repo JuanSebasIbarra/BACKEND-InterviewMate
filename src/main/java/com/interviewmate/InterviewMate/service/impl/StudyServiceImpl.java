@@ -18,7 +18,7 @@ import com.interviewmate.InterviewMate.mapper.StudyMapper;
 import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
 import com.interviewmate.InterviewMate.repository.StudyQuestionRepository;
 import com.interviewmate.InterviewMate.repository.StudySessionRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.StudyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +30,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
@@ -54,7 +53,7 @@ public class StudyServiceImpl implements StudyService {
     private final StudyQuestionRepository studyQuestionRepository;
     private final InterviewTemplateRepository templateRepository;
     private final StudyMapper studyMapper;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
     private final AiServiceProperties aiServiceProperties;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
@@ -63,14 +62,14 @@ public class StudyServiceImpl implements StudyService {
                             StudyQuestionRepository studyQuestionRepository,
                             InterviewTemplateRepository templateRepository,
                             StudyMapper studyMapper,
-                            UserRepository userRepository,
+                            AccessControlService accessControlService,
                             AiServiceProperties aiServiceProperties,
                             ObjectMapper objectMapper) {
         this.studySessionRepository = studySessionRepository;
         this.studyQuestionRepository = studyQuestionRepository;
         this.templateRepository = templateRepository;
         this.studyMapper = studyMapper;
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
         this.aiServiceProperties = aiServiceProperties;
         this.objectMapper = objectMapper;
         this.restTemplate = new RestTemplate();
@@ -79,7 +78,7 @@ public class StudyServiceImpl implements StudyService {
     @Override
     @Transactional
     public StudySessionResponse start(StartStudyRequest request) {
-        User authenticatedUser = getAuthenticatedUser();
+        User authenticatedUser = accessControlService.getAuthenticatedUser();
         InterviewTemplate template = findTemplateOwnedByUser(request.getTemplateId(), authenticatedUser.getId());
         String topic = resolveTopic(request, template);
 
@@ -116,7 +115,7 @@ public class StudyServiceImpl implements StudyService {
 
     @Override
     public List<StudySessionSummaryResponse> getByAuthenticatedUser() {
-        User user = getAuthenticatedUser();
+        User user = accessControlService.getAuthenticatedUser();
         return studySessionRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(session -> StudySessionSummaryResponse.builder()
                         .id(session.getId())
@@ -471,17 +470,8 @@ public class StudyServiceImpl implements StudyService {
         return value == null ? "" : value;
     }
 
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
-    }
-
     private void verifyOwnership(StudySession session) {
-        User user = getAuthenticatedUser();
-        if (!session.getUser().getId().equals(user.getId())) {
-            throw new AccessDeniedException("You are not the owner of this study session");
-        }
+        accessControlService.assertOwnership(session);
     }
 
     private record ChatResult(String content, int totalTokens) {}
