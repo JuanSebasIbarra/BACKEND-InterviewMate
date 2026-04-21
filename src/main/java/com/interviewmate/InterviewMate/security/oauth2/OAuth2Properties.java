@@ -10,7 +10,7 @@ public class OAuth2Properties {
 	private String cookieName = "interviewmate_auth";
 	private String cookieSameSite = "Lax";
 	private boolean cookieSecure = false;
-	private boolean cookieHttpOnly = true;
+	private boolean cookieHttpOnly = false;
 	private String cookiePath = "/";
 
 	public String getAuthorizedRedirectUri() {
