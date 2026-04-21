@@ -9,10 +9,8 @@ import com.interviewmate.InterviewMate.enums.InterviewStatus;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.mapper.InterviewTemplateMapper;
 import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.InterviewTemplateService;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,28 +22,27 @@ public class InterviewTemplateServiceImpl implements InterviewTemplateService {
 
     private final InterviewTemplateRepository templateRepository;
     private final InterviewTemplateMapper templateMapper;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
 
     public InterviewTemplateServiceImpl(InterviewTemplateRepository templateRepository,
                                         InterviewTemplateMapper templateMapper,
-                                        UserRepository userRepository) {
+                                        AccessControlService accessControlService) {
         this.templateRepository = templateRepository;
         this.templateMapper = templateMapper;
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
     public InterviewTemplateResponse create(CreateInterviewTemplateRequest request) {
-        User user = getAuthenticatedUser();
+        User user = accessControlService.getAuthenticatedUser();
         InterviewTemplate template = templateMapper.toEntity(request, user);
         return templateMapper.toResponse(templateRepository.save(template));
     }
 
     @Override
     public InterviewTemplateResponse update(UUID templateId, UpdateInterviewTemplateRequest request) {
-        User user = getAuthenticatedUser();
         InterviewTemplate template = findOrThrow(templateId);
-        verifyOwnership(template, user);
+        accessControlService.assertOwnership(template);
 
         if (request.getEnterprise() != null) template.setEnterprise(request.getEnterprise());
         if (request.getType() != null) template.setType(request.getType());
@@ -61,9 +58,8 @@ public class InterviewTemplateServiceImpl implements InterviewTemplateService {
 
     @Override
     public InterviewTemplateResponse changeStatus(UUID templateId, InterviewStatus newStatus) {
-        User user = getAuthenticatedUser();
         InterviewTemplate template = findOrThrow(templateId);
-        verifyOwnership(template, user);
+        accessControlService.assertOwnership(template);
         template.setStatus(newStatus);
         return templateMapper.toResponse(templateRepository.save(template));
     }
@@ -75,7 +71,7 @@ public class InterviewTemplateServiceImpl implements InterviewTemplateService {
 
     @Override
     public List<InterviewTemplateResponse> getAllByAuthenticatedUser() {
-        User user = getAuthenticatedUser();
+        User user = accessControlService.getAuthenticatedUser();
         return templateRepository.findByUserId(user.getId()).stream()
                 .map(templateMapper::toResponse)
                 .collect(Collectors.toList());
@@ -83,9 +79,8 @@ public class InterviewTemplateServiceImpl implements InterviewTemplateService {
 
     @Override
     public void delete(UUID templateId) {
-        User user = getAuthenticatedUser();
         InterviewTemplate template = findOrThrow(templateId);
-        verifyOwnership(template, user);
+        accessControlService.assertOwnership(template);
         template.setStatus(InterviewStatus.ARCHIVED);
         templateRepository.save(template);
     }
@@ -95,15 +90,4 @@ public class InterviewTemplateServiceImpl implements InterviewTemplateService {
                 .orElseThrow(() -> new EntityNotFoundException("Template not found: " + templateId));
     }
 
-    private void verifyOwnership(InterviewTemplate template, User user) {
-        if (!template.getUser().getId().equals(user.getId())) {
-            throw new AccessDeniedException("You are not the owner of this template");
-        }
-    }
-
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
-    }
 }

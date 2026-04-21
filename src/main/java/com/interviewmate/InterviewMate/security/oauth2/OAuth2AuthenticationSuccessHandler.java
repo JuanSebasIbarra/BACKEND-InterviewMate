@@ -6,7 +6,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -23,12 +22,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
-
-    @Value("${app.oauth2.authorized-redirect-uri:http://localhost:3000/dashboard}")
-    private String postLoginRedirectUri;
-
-    @Value("${app.oauth2.cookie-name:interviewmate_auth}")
-    private String authCookieName;
+    private final AuthCookieService authCookieService;
+    private final OAuth2Properties oAuth2Properties;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -46,19 +41,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 .orElseThrow(() -> new IllegalStateException("OAuth2 user was not provisioned correctly"));
 
         String token = jwtProvider.generateToken(user.getUsername());
-        ResponseCookie authCookie = ResponseCookie.from(authCookieName, token)
-                .path("/")
-                .sameSite("Lax")
-                .secure(request.isSecure())
-                .httpOnly(false)
-                .maxAge(Duration.ofMillis(jwtProvider.getValidityInMillis()))
-                .build();
+        ResponseCookie authCookie = authCookieService.buildAuthCookie(
+                token, Duration.ofMillis(jwtProvider.getValidityInMillis()));
 
         response.addHeader(HttpHeaders.SET_COOKIE, authCookie.toString());
 
         clearAuthenticationAttributes(request);
-        getRedirectStrategy().sendRedirect(request, response, postLoginRedirectUri);
+        getRedirectStrategy().sendRedirect(request, response, oAuth2Properties.getAuthorizedRedirectUri());
     }
 }
-
-

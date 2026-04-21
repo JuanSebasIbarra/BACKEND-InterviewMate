@@ -4,18 +4,16 @@ import com.interviewmate.InterviewMate.dto.CreateSessionRequest;
 import com.interviewmate.InterviewMate.dto.SessionResponse;
 import com.interviewmate.InterviewMate.entity.InterviewSession;
 import com.interviewmate.InterviewMate.entity.InterviewTemplate;
-    import com.interviewmate.InterviewMate.entity.User;
 import com.interviewmate.InterviewMate.enums.SessionStatus;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.mapper.InterviewSessionMapper;
 import com.interviewmate.InterviewMate.repository.InterviewSessionRepository;
 import com.interviewmate.InterviewMate.repository.InterviewTemplateRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.AiInterviewService;
 import com.interviewmate.InterviewMate.service.InterviewSessionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,29 +29,26 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private final InterviewTemplateRepository templateRepository;
     private final InterviewSessionMapper sessionMapper;
     private final AiInterviewService aiInterviewService;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
 
     public InterviewSessionServiceImpl(InterviewSessionRepository sessionRepository,
                                        InterviewTemplateRepository templateRepository,
                                        InterviewSessionMapper sessionMapper,
                                        AiInterviewService aiInterviewService,
-                                       UserRepository userRepository) {
+                                       AccessControlService accessControlService) {
         this.sessionRepository = sessionRepository;
         this.templateRepository = templateRepository;
         this.sessionMapper = sessionMapper;
         this.aiInterviewService = aiInterviewService;
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
     @Transactional
     public SessionResponse create(CreateSessionRequest request) {
-        User user = getAuthenticatedUser();
         InterviewTemplate template = templateRepository.findById(request.getTemplateId())
                 .orElseThrow(() -> new EntityNotFoundException("Template not found: " + request.getTemplateId()));
-        if (!template.getUser().getId().equals(user.getId())) {
-            throw new IllegalStateException("You are not the owner of this interview template");
-        }
+        accessControlService.assertOwnership(template);
         int attemptNumber = sessionRepository.countByTemplateId(request.getTemplateId()) + 1;
         InterviewSession session = sessionMapper.toEntity(template, attemptNumber);
         InterviewSession saved = sessionRepository.save(session);
@@ -107,12 +102,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     public List<SessionResponse> getAllByTemplate(UUID templateId) {
-        User user = getAuthenticatedUser();
         InterviewTemplate template = templateRepository.findById(templateId)
                 .orElseThrow(() -> new EntityNotFoundException("Template not found: " + templateId));
-        if (!template.getUser().getId().equals(user.getId())) {
-            throw new IllegalStateException("You are not the owner of this interview template");
-        }
+        accessControlService.assertOwnership(template);
         return sessionRepository.findByTemplateId(templateId).stream()
                 .map(sessionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -120,8 +112,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     public Page<SessionResponse> getByAuthenticatedUser(Pageable pageable) {
-        User user = getAuthenticatedUser();
-        return sessionRepository.findByTemplateUserIdOrderByStartedAtDesc(user.getId(), pageable)
+        Long userId = accessControlService.getAuthenticatedUser().getId();
+        return sessionRepository.findByTemplateUserIdOrderByStartedAtDesc(userId, pageable)
                 .map(sessionMapper::toResponse);
     }
 
@@ -130,16 +122,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .orElseThrow(() -> new EntityNotFoundException("Session not found: " + sessionId));
     }
 
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
-    }
-
     private void verifyOwnership(InterviewSession session) {
-        User user = getAuthenticatedUser();
-        if (!session.getTemplate().getUser().getId().equals(user.getId())) {
-            throw new IllegalStateException("You are not the owner of this interview session");
-        }
+        accessControlService.assertOwnership(session);
     }
 }

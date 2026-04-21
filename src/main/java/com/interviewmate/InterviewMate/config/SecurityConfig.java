@@ -56,7 +56,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // permit only register and login as public endpoints; keep /auth/me protected
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/register", "/auth/login", "/actuator/health").permitAll()
+                        .requestMatchers("/auth/register", "/auth/login", "/auth/oauth2/google", "/actuator/health").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )

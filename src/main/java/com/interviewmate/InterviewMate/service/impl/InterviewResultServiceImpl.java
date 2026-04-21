@@ -4,16 +4,13 @@ import com.interviewmate.InterviewMate.dto.CreateResultRequest;
 import com.interviewmate.InterviewMate.dto.InterviewResultResponse;
 import com.interviewmate.InterviewMate.entity.InterviewResult;
 import com.interviewmate.InterviewMate.entity.InterviewSession;
-import com.interviewmate.InterviewMate.entity.User;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.mapper.InterviewResultMapper;
 import com.interviewmate.InterviewMate.repository.InterviewResultRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.InterviewResultService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -25,39 +22,36 @@ public class InterviewResultServiceImpl implements InterviewResultService {
 
     private final InterviewResultRepository resultRepository;
     private final InterviewResultMapper resultMapper;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
 
     public InterviewResultServiceImpl(InterviewResultRepository resultRepository,
                                       InterviewResultMapper resultMapper,
-                                      UserRepository userRepository) {
+                                      AccessControlService accessControlService) {
         this.resultRepository = resultRepository;
         this.resultMapper = resultMapper;
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
     public InterviewResultResponse getBySession(UUID sessionId) {
-        User user = getAuthenticatedUser();
         InterviewResult result = resultRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Result not found for session: " + sessionId));
-        if (!result.getSession().getTemplate().getUser().getId().equals(user.getId())) {
-            throw new AccessDeniedException("You are not the owner of this interview result");
-        }
+        accessControlService.assertOwnership(result);
         return resultMapper.toResponse(result);
     }
 
     @Override
     public List<InterviewResultResponse> getByAuthenticatedUser() {
-        User user = getAuthenticatedUser();
-        return resultRepository.findBySessionTemplateUserId(user.getId()).stream()
+        Long userId = accessControlService.getAuthenticatedUser().getId();
+        return resultRepository.findBySessionTemplateUserId(userId).stream()
                 .map(resultMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Page<InterviewResultResponse> getByAuthenticatedUserPaged(Pageable pageable) {
-        User user = getAuthenticatedUser();
-        return resultRepository.findBySessionTemplateUserId(user.getId(), pageable)
+        Long userId = accessControlService.getAuthenticatedUser().getId();
+        return resultRepository.findBySessionTemplateUserId(userId, pageable)
                 .map(resultMapper::toResponse);
     }
 
@@ -75,9 +69,4 @@ public class InterviewResultServiceImpl implements InterviewResultService {
         return resultMapper.toResponse(resultRepository.save(result));
     }
 
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
-    }
 }

@@ -69,7 +69,6 @@ application-dev.yml
 application-secret.properties
 application-secret.yml
 secrets/
-### Logs y Reportes de Crash de Java ###
-*.log
-hs_err_pid*
-replay_pid*
+
+### Evitar mezcla de repos frontend dentro del backend ###
+FRONTEND-InterviewMate/

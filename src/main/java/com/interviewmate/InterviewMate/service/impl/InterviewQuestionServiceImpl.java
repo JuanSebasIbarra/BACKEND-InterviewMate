@@ -3,16 +3,13 @@ package com.interviewmate.InterviewMate.service.impl;
 import com.interviewmate.InterviewMate.dto.QuestionResponse;
 import com.interviewmate.InterviewMate.dto.SubmitAnswerRequest;
 import com.interviewmate.InterviewMate.entity.InterviewQuestion;
-import com.interviewmate.InterviewMate.entity.User;
 import com.interviewmate.InterviewMate.exception.EntityNotFoundException;
 import com.interviewmate.InterviewMate.mapper.InterviewQuestionMapper;
 import com.interviewmate.InterviewMate.repository.InterviewQuestionRepository;
-import com.interviewmate.InterviewMate.repository.UserRepository;
+import com.interviewmate.InterviewMate.service.AccessControlService;
 import com.interviewmate.InterviewMate.service.AiInterviewService;
 import com.interviewmate.InterviewMate.service.InterviewQuestionService;
 import com.interviewmate.InterviewMate.service.InterviewSessionService;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,18 +24,18 @@ public class InterviewQuestionServiceImpl implements InterviewQuestionService {
     private final InterviewQuestionMapper questionMapper;
     private final AiInterviewService aiInterviewService;
     private final InterviewSessionService sessionService;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControlService;
 
     public InterviewQuestionServiceImpl(InterviewQuestionRepository questionRepository,
                                         InterviewQuestionMapper questionMapper,
                                         AiInterviewService aiInterviewService,
                                         InterviewSessionService sessionService,
-                                        UserRepository userRepository) {
+                                         AccessControlService accessControlService) {
         this.questionRepository = questionRepository;
         this.questionMapper = questionMapper;
         this.aiInterviewService = aiInterviewService;
         this.sessionService = sessionService;
-        this.userRepository = userRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
@@ -83,16 +80,7 @@ public class InterviewQuestionServiceImpl implements InterviewQuestionService {
                 .orElseThrow(() -> new EntityNotFoundException("Question not found: " + questionId));
     }
 
-    private User getAuthenticatedUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
-    }
-
     private void verifyOwnership(InterviewQuestion question) {
-        User user = getAuthenticatedUser();
-        if (!question.getSession().getTemplate().getUser().getId().equals(user.getId())) {
-            throw new AccessDeniedException("You are not the owner of this interview question");
-        }
+        accessControlService.assertOwnership(question);
     }
 }
